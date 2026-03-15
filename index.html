@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F5F0EB">
+<title>Ons Huisje — Bouwbudget</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F5F0EB;
+  --surface-1: #FFFFFF;
+  --surface-2: #EDE8E2;
+  --surface-3: #E2DCD5;
+  --border: #D6CFC7;
+  --text: #2C2520;
+  --text-muted: #8C7E72;
+  --accent: #B07D4F;
+  --accent-soft: rgba(176,125,79,0.12);
+  --success: #5A8A5E;
+  --success-soft: rgba(90,138,94,0.12);
+  --danger: #C45B4A;
+  --danger-soft: rgba(196,91,74,0.10);
+  --warning: #C49234;
+  --warning-soft: rgba(196,146,52,0.12);
+  --info: #5B8FA8;
+  --info-soft: rgba(91,143,168,0.12);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Outfit', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+input, select, textarea, button { font-family: inherit; }
+button { cursor: pointer; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0%,100% { opacity:.4; } 50% { opacity:1; } }
+.fade-in { animation: fadeIn .3s ease-out; }
+.slide-up { animation: slideUp .25s ease-out; }
+
+/* Layout */
+.container { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+.header {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(176,125,79,0.05) 0%, transparent 100%);
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.header-inner { display: flex; align-items: center; justify-content: space-between; max-width: 900px; margin: 0 auto; }
+.header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+.header p { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.header-actions { display: flex; gap: 6px; }
+
+/* Buttons */
+.btn {
+  padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; border: none; }
+.btn-danger { background: var(--danger); color: #fff; border: none; }
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+
+/* Navigation */
+.nav { display: flex; gap: 3px; padding: 10px 16px; max-width: 900px; margin: 0 auto; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.nav-btn {
+  padding: 7px 14px; border-radius: 8px; border: none; background: transparent;
+  color: var(--text-muted); font-size: 13px; font-weight: 400;
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.nav-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* Cards */
+.card {
+  background: var(--surface-1); border-radius: 16px; padding: 20px;
+  border: 1px solid var(--border); position: relative; overflow: hidden;
+}
+.card-grid { display: grid; gap: 12px; }
+.card-grid-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) { .card-grid-2 { grid-template-columns: 1fr; } }
+
+/* Progress bar */
+.progress-track { width: 100%; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 5px; transition: width .6s cubic-bezier(.22,1,.36,1); }
+
+/* Table rows */
+.fase-row {
+  display: grid; grid-template-columns: 40px 1fr 100px 120px 90px 24px;
+  align-items: center; gap: 8px; padding: 12px 14px; border-radius: 10px;
+  cursor: pointer; transition: background .12s; border-left: 3px solid transparent;
+}
+.fase-row:hover { background: var(--surface-2); }
+.fase-row.over-budget { border-left-color: var(--danger); }
+.fase-row.expanded { background: var(--surface-2); }
+.fase-detail { padding: 6px 14px 12px 54px; }
+
+/* Modal overlay */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal {
+  background: var(--surface-1); border-radius: 20px; padding: 24px;
+  border: 1px solid var(--border); width: 100%; max-width: 440px;
+  animation: slideUp .25s ease-out; max-height: 90vh; overflow-y: auto;
+}
+.modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.form-group { margin-bottom: 12px; }
+.form-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; display: block; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.form-input {
+  width: 100%; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 14px; outline: none;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* Type pills */
+.pill {
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-align: center;
+}
+.pill-invoice { background: var(--accent-soft); color: var(--accent); }
+.pill-cash { background: var(--warning-soft); color: var(--warning); }
+.pill-savings { background: var(--info-soft); color: var(--info); }
+
+/* Badge */
+.badge {
+  font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft);
+  border-radius: 6px; padding: 2px 7px; text-align: center; white-space: nowrap;
+}
+
+/* Mono numbers */
+.mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'tnum'; }
+
+/* Mini fase cards on dashboard */
+.fase-mini {
+  padding: 11px 13px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid transparent;
+}
+.fase-mini.over { border-color: rgba(196,91,74,0.3); }
+
+/* Responsive invoice table */
+.inv-row {
+  display: grid; grid-template-columns: 90px 1fr 1fr 70px 90px 60px 50px;
+  gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; align-items: center;
+}
+.em-row {
+  display: grid; grid-template-columns: 90px 1fr 1fr 90px 70px 50px;
+  gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; align-items: center;
+}
+@media (max-width: 640px) {
+  .inv-row, .em-row { font-size: 11px; gap: 4px; }
+  .fase-row { grid-template-columns: 36px 1fr 80px 90px 70px 20px; font-size: 12px; }
+  .inv-row { grid-template-columns: 70px 1fr 80px 50px 40px; }
+  .inv-row .hide-mobile { display: none; }
+  .em-row { grid-template-columns: 70px 1fr 80px 60px 40px; }
+  .em-row .hide-mobile { display: none; }
+}
+
+/* Alert box */
+.alert {
+  border-radius: 14px; padding: 14px 18px; margin-bottom: 16px;
+  border: 1px solid rgba(196,91,74,0.2); background: var(--danger-soft);
+}
+
+/* Schijf buttons */
+.schijf-btn {
+  width: 50px; height: 50px; border-radius: 12px; font-size: 16px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; transition: all .2s;
+  border: 2px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+}
+.schijf-btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+/* Info box */
+.info-box {
+  background: var(--surface-2); border-radius: 10px; padding: 12px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.finance-block {
+  background: var(--surface-2); border-radius: 12px; padding: 14px 16px;
+  border-left: 3px solid var(--accent);
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════
+const LOAN_TOTAL = 342000;
+const TRANCHE_COUNT = 10;
+const TRANCHE_AMOUNT = LOAN_TOTAL / TRANCHE_COUNT;
+const SAVINGS_INITIAL = 7100;
+const BOUW_BUDGET = 293860.7;
+const KBK_BUDGET = 48400.0;
+const TOTAL_BUDGET = 342260.7;
+const DATA_VERSION = 3;
+
+const MEETSTAAT_BOUW = [
+  {id:"A",name:"Algemene voorzieningen",budget:6443.25},
+  {id:"B",name:"Grondwerken",budget:6373.92},
+  {id:"C",name:"Betonwerken",budget:38834.92},
+  {id:"D",name:"Holle welfsels",budget:16225.92},
+  {id:"E",name:"Metselwerk",budget:52257.30},
+  {id:"F",name:"Voegwerken",budget:3669.20},
+  {id:"G",name:"Isolatiewerken",budget:37081.27},
+  {id:"H",name:"Tegel- & parketwerken",budget:16097.05},
+  {id:"I-K",name:"Arduin, marmer & afcementeren",budget:5383.20},
+  {id:"M",name:"Chappe",budget:3929.20},
+  {id:"N",name:"Bezetwerk",budget:12637.66},
+  {id:"O",name:"Timmerwerk",budget:11410.81},
+  {id:"P-Q",name:"Ramen, deuren & glas",budget:17880.47},
+  {id:"R",name:"Dakwerken",budget:7223.34},
+  {id:"S",name:"Metaalwerken",budget:9971.97},
+  {id:"T",name:"Lood- & zinkwerken",budget:1724.52},
+  {id:"U",name:"Riolering",budget:5697.28},
+  {id:"V",name:"Ventilatie (EPB)",budget:6534.00},
+  {id:"X",name:"Sanitair",budget:6806.25},
+  {id:"Y",name:"Elektriciteit",budget:8621.25},
+  {id:"Z",name:"Centrale verwarming",budget:19057.50},
+];
+const KBK_FASE = {id:"KBK",name:"Keuken & badkamer",budget:48400.0};
+const ALL_FASES = [...MEETSTAAT_BOUW, KBK_FASE];
+
+const INITIAL_EIGEN_MIDDELEN = [
+  {id:"em-1",leverancier:"Stabiliteitsingenieur",bedrag:500,btw:0,datum:"2025-01-01",omschrijving:"Studie stabiliteit (cash)",type:"cash"},
+  {id:"em-2",leverancier:"Roel",bedrag:300,btw:0,datum:"2025-01-01",omschrijving:"Hulp kelder",type:"cash"},
+  {id:"em-3",leverancier:"SIPA BV",bedrag:816,btw:0,datum:"2025-01-01",omschrijving:"Grondwerken",type:"cash"},
+  {id:"em-4",leverancier:"Luc",bedrag:900,btw:0,datum:"2025-01-01",omschrijving:"Hulp kelder en bouw",type:"cash"},
+  {id:"em-5",leverancier:"Vloerpolijsting",bedrag:700,btw:0,datum:"2025-01-01",omschrijving:"Poleren vloer kelder + tuinhuisje",type:"cash"},
+  {id:"em-6",leverancier:"Architect Roex",bedrag:1200,btw:0,datum:"2025-01-01",omschrijving:"Architect (cash)",type:"cash"},
+  {id:"em-7",leverancier:"EPB-verslaggever",bedrag:2359,btw:0,datum:"2025-01-01",omschrijving:"EPB-verslag (spaargeld)",type:"savings"},
+  {id:"em-8",leverancier:"Stabiliteitsingenieur",bedrag:955,btw:0,datum:"2025-01-01",omschrijving:"Stabiliteit (spaargeld)",type:"savings"},
+  {id:"em-9",leverancier:"Architect Roex",bedrag:8470,btw:0,datum:"2025-01-01",omschrijving:"Architect (spaargeld)",type:"savings"},
+];
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let state = {
+  invoices: [],
+  eigenMiddelen: [...INITIAL_EIGEN_MIDDELEN],
+  savings: SAVINGS_INITIAL,
+  tranchesUsed: 0,
+  apiKey: "",
+  activeTab: "dashboard",
+  expandedFase: null,
+  modal: null, // {type, data}
+};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem("onshuisje-v" + DATA_VERSION);
+    if (raw) {
+      const s = JSON.parse(raw);
+      state.invoices = s.invoices || [];
+      state.eigenMiddelen = s.eigenMiddelen || INITIAL_EIGEN_MIDDELEN;
+      state.savings = s.savings ?? SAVINGS_INITIAL;
+      state.tranchesUsed = s.tranchesUsed ?? 0;
+      state.apiKey = s.apiKey || "";
+    }
+  } catch(e) { console.error(e); }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem("onshuisje-v" + DATA_VERSION, JSON.stringify({
+      invoices: state.invoices,
+      eigenMiddelen: state.eigenMiddelen,
+      savings: state.savings,
+      tranchesUsed: state.tranchesUsed,
+      apiKey: state.apiKey,
+    }));
+  } catch(e) { console.error(e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+const fmt = n => new Intl.NumberFormat("nl-BE",{style:"currency",currency:"EUR"}).format(n);
+const pct = (a,b) => b===0?0:Math.min((a/b)*100,100);
+const uid = () => "f-"+Date.now()+"-"+Math.random().toString(36).slice(2,6);
+const $ = sel => document.querySelector(sel);
+const h = (tag, attrs={}, ...children) => {
+  const el = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs)) {
+    if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === "className") el.className = v;
+    else if (k === "html") el.innerHTML = v;
+    else el.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (typeof c === "string") el.appendChild(document.createTextNode(c));
+    else if (c) el.appendChild(c);
+  }
+  return el;
+};
+
+function getSpentByFase() {
+  const map = {};
+  ALL_FASES.forEach(f => map[f.id] = 0);
+  state.invoices.forEach(inv => { if (map[inv.fase] !== undefined) map[inv.fase] += inv.bedrag; });
+  return map;
+}
+
+function getBouwSpent(sbf) { return MEETSTAAT_BOUW.reduce((s,f) => s + (sbf[f.id]||0), 0); }
+function getKbkSpent(sbf) { return sbf["KBK"]||0; }
+function getTotalEigenMiddelen() { return state.eigenMiddelen.reduce((s,i) => s+i.bedrag, 0); }
+function getCashTotal() { return state.eigenMiddelen.filter(i=>i.type==="cash").reduce((s,i)=>s+i.bedrag,0); }
+function getSavingsTotal() { return state.eigenMiddelen.filter(i=>i.type==="savings").reduce((s,i)=>s+i.bedrag,0); }
+
+function checkDuplicate(inv) {
+  return state.invoices.find(ex =>
+    ex.id !== inv.id &&
+    ex.leverancier.toLowerCase() === inv.leverancier.toLowerCase() &&
+    Math.abs(ex.bedrag - inv.bedrag) < 0.01 &&
+    ex.datum === inv.datum
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AI INVOICE READER
+// ═══════════════════════════════════════════════════════════════
+async function readInvoiceAI(base64, fileName) {
+  if (!state.apiKey) return null;
+  const mediaType = fileName.match(/\.png$/i) ? "image/png" :
+                    fileName.match(/\.jpe?g$/i) ? "image/jpeg" : "application/pdf";
+  const faseOpts = ALL_FASES.map(f=>`${f.id}: ${f.name}`).join(", ");
+  const docBlock = mediaType === "application/pdf"
+    ? {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}}
+    : {type:"image",source:{type:"base64",media_type:mediaType,data:base64}};
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":state.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:1000,
+        messages:[{role:"user",content:[
+          docBlock,
+          {type:"text",text:`Lees deze factuur en geef ALLEEN een JSON object terug (geen markdown, geen backticks) met: {"leverancier":"naam","bedrag":getal excl BTW,"btw":BTW bedrag als getal,"datum":"YYYY-MM-DD","omschrijving":"korte omschrijving","fase":"meest passende fase ID"}. Mogelijke fases: ${faseOpts}. Als je iets niet kunt lezen, gebruik null.`}
+        ]}]
+      })
+    });
+    const data = await resp.json();
+    const txt = (data.content||[]).find(b=>b.type==="text")?.text||"";
+    return JSON.parse(txt.replace(/```json\s*/g,"").replace(/```/g,"").trim());
+  } catch(e) { console.error("AI read failed:",e); return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROGRESS BAR COMPONENT
+// ═══════════════════════════════════════════════════════════════
+function progressBar(value, max, height=8, danger=false) {
+  const p = pct(value, max);
+  const color = danger && p > 100 ? "var(--danger)" : "var(--accent)";
+  const track = h("div",{className:"progress-track",style:{height:height+"px"}},
+    h("div",{className:"progress-fill",style:{width:Math.min(p,100)+"%",height:"100%",background:color}})
+  );
+  return track;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+function render() {
+  const app = $("#app");
+  app.innerHTML = "";
+  const sbf = getSpentByFase();
+  const bouwSpent = getBouwSpent(sbf);
+  const kbkSpent = getKbkSpent(sbf);
+  const totalBouwSpent = bouwSpent + kbkSpent;
+  const totalEM = getTotalEigenMiddelen();
+  const loanUsed = state.tranchesUsed * TRANCHE_AMOUNT;
+  const loanRemaining = LOAN_TOTAL - loanUsed;
+
+  // ── HEADER ──
+  const header = h("header",{className:"header"},
+    h("div",{className:"header-inner"},
+      h("div",{},
+        h("h1",{},h("span",{style:{fontSize:"24px"}},"👨‍👩‍👧")," Ons Huisje"),
+        h("p",{},"Piras — Venken · Kersenweg 3, Dilsen-Stokkem")
+      ),
+      h("div",{className:"header-actions"},
+        h("button",{className:"btn btn-sm",onClick:()=>{
+          state.modal={type:"invoice",data:{id:uid(),leverancier:"",bedrag:0,btw:0,datum:new Date().toISOString().slice(0,10),fase:ALL_FASES[0].id,omschrijving:"",type:"invoice"}};
+          render();
+        }},"✏️ Manueel"),
+        h("button",{className:"btn btn-sm btn-primary",onClick:()=>document.getElementById("fileInput").click()},"📄 Factuur"),
+        h("input",{type:"file",id:"fileInput",accept:".pdf,.png,.jpg,.jpeg",style:{display:"none"},onChange:handleFileUpload})
+      )
+    )
+  );
+  app.appendChild(header);
+
+  // ── NAV ──
+  const tabs = [
+    {id:"dashboard",label:"Dashboard",icon:"📊"},
+    {id:"fases",label:"Meetstaat",icon:"📋"},
+    {id:"invoices",label:"Facturen",icon:"🧾"},
+    {id:"lening",label:"Lening",icon:"🏦"},
+    {id:"settings",label:"Instellingen",icon:"⚙️"},
+  ];
+  const nav = h("nav",{className:"nav"});
+  tabs.forEach(t => {
+    nav.appendChild(h("button",{
+      className:"nav-btn"+(state.activeTab===t.id?" active":""),
+      onClick:()=>{ state.activeTab=t.id; render(); }
+    },t.icon+" "+t.label));
+  });
+  app.appendChild(nav);
+
+  // ── CONTENT ──
+  const main = h("main",{className:"container fade-in",style:{padding:"16px 16px 60px"}});
+
+  if (state.activeTab === "dashboard") renderDashboard(main, sbf, bouwSpent, kbkSpent, totalBouwSpent, totalEM, loanUsed, loanRemaining);
+  else if (state.activeTab === "fases") renderMeetstaat(main, sbf, totalBouwSpent);
+  else if (state.activeTab === "invoices") renderFacturen(main, totalEM);
+  else if (state.activeTab === "lening") renderLening(main, loanUsed, loanRemaining, totalEM);
+  else if (state.activeTab === "settings") renderSettings(main);
+
+  app.appendChild(main);
+
+  // ── MODAL ──
+  if (state.modal) renderModal(app);
+}
+
+// ── DASHBOARD ──
+function renderDashboard(main, sbf, bouwSpent, kbkSpent, totalBouwSpent, totalEM, loanUsed, loanRemaining) {
+  // Budget blocks
+  const grid = h("div",{className:"card-grid card-grid-2",style:{marginBottom:"16px"}});
+
+  // Bouw
+  const bouwCard = h("div",{className:"card"});
+  bouwCard.innerHTML = `
+    <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">🏗️ Bouwfases A–Z (meetstaat −25%)</div>
+    <div class="mono" style="font-size:26px;font-weight:700;margin-bottom:2px">${fmt(BOUW_BUDGET)}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+      Besteed: ${fmt(bouwSpent)} · Resterend: <span style="color:${BOUW_BUDGET-bouwSpent>=0?"var(--success)":"var(--danger)"};font-weight:600">${fmt(BOUW_BUDGET-bouwSpent)}</span>
+    </div>
+  `;
+  bouwCard.appendChild(progressBar(bouwSpent, BOUW_BUDGET, 10, true));
+  bouwCard.appendChild(h("div",{style:{fontSize:"11px",color:"var(--text-muted)",marginTop:"5px"}},`${pct(bouwSpent,BOUW_BUDGET).toFixed(1)}% besteed · incl. 21% BTW`));
+  grid.appendChild(bouwCard);
+
+  // KBK
+  const kbkCard = h("div",{className:"card"});
+  kbkCard.innerHTML = `
+    <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">🚿 Keuken & badkamer</div>
+    <div class="mono" style="font-size:26px;font-weight:700;margin-bottom:2px">${fmt(KBK_BUDGET)}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+      Besteed: ${fmt(kbkSpent)} · Resterend: <span style="color:${KBK_BUDGET-kbkSpent>=0?"var(--success)":"var(--danger)"};font-weight:600">${fmt(KBK_BUDGET-kbkSpent)}</span>
+    </div>
+  `;
+  const kbkBar = progressBar(kbkSpent, KBK_BUDGET, 10, true);
+  kbkBar.querySelector(".progress-fill").style.background = "var(--info)";
+  kbkCard.appendChild(kbkBar);
+  kbkCard.appendChild(h("div",{style:{fontSize:"11px",color:"var(--text-muted)",marginTop:"5px"}},`${pct(kbkSpent,KBK_BUDGET).toFixed(1)}% besteed · incl. 21% BTW · geen −25%`));
+  grid.appendChild(kbkCard);
+  main.appendChild(grid);
+
+  // Totaal bar
+  const totBar = h("div",{className:"card",style:{padding:"12px 18px",marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"space-between"}});
+  totBar.innerHTML = `
+    <div style="font-size:12px;color:var(--text-muted)">📐 <strong style="color:var(--text)">Totaal bouwbudget</strong> (fases + keuken/badkamer = lening)</div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span class="mono" style="font-size:12px;color:var(--text-muted)">${fmt(totalBouwSpent)} / ${fmt(TOTAL_BUDGET)}</span>
+      <span class="mono" style="font-size:17px;font-weight:700;color:var(--accent)">${pct(totalBouwSpent,TOTAL_BUDGET).toFixed(1)}%</span>
+    </div>
+  `;
+  main.appendChild(totBar);
+
+  // Financiering
+  const finCard = h("div",{className:"card",style:{marginBottom:"16px"}});
+  finCard.innerHTML = `
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">💶 Financiering & eigen middelen</h3>
+    <div class="card-grid card-grid-2" style="margin-bottom:10px">
+      <div class="finance-block" style="border-left-color:var(--accent)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:3px">🏦 Lening (= bouwbudget)</div>
+        <div class="mono" style="font-size:20px;font-weight:700;color:var(--accent);margin-bottom:6px">${fmt(loanUsed)} <span style="font-size:13px;font-weight:400;color:var(--text-muted)">/ ${fmt(LOAN_TOTAL)}</span></div>
+        <div style="font-size:11px;color:var(--text-muted)">Schijf ${state.tranchesUsed}/${TRANCHE_COUNT} · Resterend: ${fmt(loanRemaining)}</div>
+      </div>
+      <div class="finance-block" style="border-left-color:var(--warning)">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;font-weight:600;letter-spacing:.04em;margin-bottom:3px">💶 Eigen middelen (buiten bouwbudget)</div>
+        <div class="mono" style="font-size:20px;font-weight:700;color:var(--warning);margin-bottom:6px">${fmt(totalEM)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">💵 Cash: ${fmt(getCashTotal())} · 🐷 Spaargeld: ${fmt(getSavingsTotal())}</div>
+      </div>
+    </div>
+    <div class="card-grid card-grid-2">
+      <div class="info-box"><span style="font-size:12px;color:var(--text-muted)">🐷 Huidig spaarsaldo</span><span class="mono" style="font-size:15px;font-weight:700;color:var(--success)">${fmt(state.savings)}</span></div>
+      <div class="info-box"><span style="font-size:12px;color:var(--text-muted)">📊 Totale kost bouwproject</span><span class="mono" style="font-size:15px;font-weight:700;color:var(--text)">${fmt(totalBouwSpent+totalEM)}</span></div>
+    </div>
+  `;
+  main.appendChild(finCard);
+
+  // Alerts
+  const overFases = ALL_FASES.filter(f => sbf[f.id] > f.budget);
+  if (overFases.length > 0) {
+    const alert = h("div",{className:"alert"});
+    alert.innerHTML = `<div style="font-size:13px;font-weight:600;color:var(--danger);margin-bottom:4px">⚠️ Fases over budget</div>`;
+    overFases.forEach(f => {
+      alert.appendChild(h("div",{style:{fontSize:"12px",marginBottom:"2px"}},
+        h("strong",{},f.id)," ",f.name,": ",fmt(sbf[f.id]-f.budget)," over budget"
+      ));
+    });
+    main.appendChild(alert);
+  }
+
+  // Mini fase grid
+  const faseCard = h("div",{className:"card"});
+  faseCard.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"12px"}},"Budget per bouwfase"));
+  const faseGrid = h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:"8px"}});
+  MEETSTAAT_BOUW.forEach(f => {
+    const spent = sbf[f.id]||0;
+    const over = spent > f.budget;
+    const mini = h("div",{className:"fase-mini"+(over?" over":"")});
+    mini.innerHTML = `<div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <span style="font-size:11px;font-weight:600">${f.id} ${f.name}</span>
+      <span class="mono" style="font-size:11px;color:${over?"var(--danger)":"var(--success)"};font-weight:600">${fmt(spent)} / ${fmt(f.budget)}</span>
+    </div>`;
+    mini.appendChild(progressBar(spent, f.budget, 5, true));
+    faseGrid.appendChild(mini);
+  });
+  faseCard.appendChild(faseGrid);
+  main.appendChild(faseCard);
+}
+
+// ── MEETSTAAT ──
+function renderMeetstaat(main, sbf, totalBouwSpent) {
+  const card = h("div",{className:"card",style:{padding:"0",overflow:"hidden"}});
+  // Header
+  const hdr = h("div",{className:"fase-row",style:{padding:"10px 14px",borderBottom:"1px solid var(--border)",fontSize:"10px",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:".05em",cursor:"default"}});
+  hdr.innerHTML = `<span>ID</span><span>Fase</span><span style="text-align:right">Budget</span><span>Voortgang</span><span style="text-align:right">Rest</span><span></span>`;
+  card.appendChild(hdr);
+
+  ALL_FASES.forEach(f => {
+    const spent = sbf[f.id]||0;
+    const over = spent > f.budget;
+    const remaining = f.budget - spent;
+    const expanded = state.expandedFase === f.id;
+    const row = h("div",{className:"fase-row"+(over?" over-budget":"")+(expanded?" expanded":""),onClick:()=>{
+      state.expandedFase = expanded ? null : f.id; render();
+    }});
+    row.innerHTML = `
+      <span class="badge">${f.id}</span>
+      <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+      <span class="mono" style="font-size:12px;color:var(--text-muted);text-align:right">${fmt(f.budget)}</span>
+    `;
+    row.appendChild(progressBar(spent, f.budget, 6, true));
+    row.appendChild(h("span",{className:"mono",style:{fontSize:"12px",fontWeight:"600",textAlign:"right",color:over?"var(--danger)":"var(--success)"}}, (over?"+":"")+fmt(Math.abs(remaining))));
+    row.appendChild(h("span",{style:{fontSize:"11px",color:"var(--text-muted)",transform:expanded?"rotate(180deg)":"",transition:"transform .2s"}},"▼"));
+    card.appendChild(row);
+
+    if (expanded) {
+      const invs = state.invoices.filter(i=>i.fase===f.id);
+      const detail = h("div",{className:"fase-detail"});
+      if (invs.length === 0) {
+        detail.appendChild(h("div",{style:{fontSize:"12px",color:"var(--text-muted)",fontStyle:"italic",padding:"6px 0"}},"Nog geen uitgaven voor deze fase"));
+      } else {
+        invs.forEach((inv,i) => {
+          const r = h("div",{style:{display:"grid",gridTemplateColumns:"90px 1fr 90px",gap:"6px",padding:"6px 0",borderBottom:i<invs.length-1?"1px solid var(--border)":"none",fontSize:"12px",color:"var(--text-muted)"}});
+          r.innerHTML = `<span>${inv.datum}</span><span style="color:var(--text)">${inv.leverancier} — ${inv.omschrijving}</span><span class="mono" style="text-align:right">${fmt(inv.bedrag)}</span>`;
+          detail.appendChild(r);
+        });
+      }
+      card.appendChild(detail);
+    }
+  });
+
+  // Total row
+  const tot = h("div",{className:"fase-row",style:{borderTop:"2px solid var(--border)",fontWeight:"700",fontSize:"13px",cursor:"default"}});
+  tot.innerHTML = `<span></span><span>TOTAAL</span><span class="mono" style="text-align:right">${fmt(TOTAL_BUDGET)}</span>`;
+  tot.appendChild(progressBar(totalBouwSpent, TOTAL_BUDGET, 6, true));
+  tot.appendChild(h("span",{className:"mono",style:{textAlign:"right",color:TOTAL_BUDGET-totalBouwSpent>=0?"var(--success)":"var(--danger)"}},fmt(TOTAL_BUDGET-totalBouwSpent)));
+  tot.appendChild(h("span",{}));
+  card.appendChild(tot);
+  main.appendChild(card);
+}
+
+// ── FACTUREN ──
+function renderFacturen(main, totalEM) {
+  // Bouwbudget invoices
+  main.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"8px"}},"🏗️ Facturen bouwbudget (lening)"));
+  const card1 = h("div",{className:"card",style:{padding:"0",overflow:"hidden",marginBottom:"24px"}});
+  const hdr1 = h("div",{className:"inv-row",style:{borderBottom:"1px solid var(--border)",fontSize:"10px",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:".04em"}});
+  hdr1.innerHTML = `<span>Datum</span><span>Leverancier</span><span class="hide-mobile">Omschrijving</span><span class="hide-mobile">Fase</span><span style="text-align:right">Bedrag</span><span class="hide-mobile" style="text-align:right">BTW</span><span></span>`;
+  card1.appendChild(hdr1);
+
+  if (state.invoices.length === 0) {
+    card1.appendChild(h("div",{style:{padding:"18px",fontSize:"12px",color:"var(--text-muted)",fontStyle:"italic",textAlign:"center"}},"Nog geen facturen. Upload een factuur of voeg er manueel één toe."));
+  }
+  [...state.invoices].sort((a,b)=>b.datum.localeCompare(a.datum)).forEach(inv => {
+    const row = h("div",{className:"inv-row"});
+    row.innerHTML = `
+      <span class="mono" style="color:var(--text-muted)">${inv.datum}</span>
+      <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.leverancier}</span>
+      <span class="hide-mobile" style="color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inv.omschrijving}</span>
+      <span class="hide-mobile"><span class="badge">${inv.fase}</span></span>
+      <span class="mono" style="text-align:right;font-weight:600">${fmt(inv.bedrag)}</span>
+      <span class="mono hide-mobile" style="text-align:right;color:var(--text-muted)">${fmt(inv.btw)}</span>
+    `;
+    const actions = h("div",{style:{display:"flex",gap:"3px"}});
+    actions.appendChild(h("button",{style:{background:"none",border:"none",fontSize:"13px",padding:"2px",cursor:"pointer"},onClick:()=>{state.modal={type:"invoice",data:{...inv}};render();}},"✏️"));
+    actions.appendChild(h("button",{style:{background:"none",border:"none",fontSize:"13px",padding:"2px",cursor:"pointer"},onClick:()=>{state.invoices=state.invoices.filter(i=>i.id!==inv.id);saveState();render();}},"🗑️"));
+    row.appendChild(actions);
+    card1.appendChild(row);
+  });
+  main.appendChild(card1);
+
+  // Eigen middelen
+  const emHeader = h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}});
+  emHeader.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600"}},"💶 Eigen middelen (buiten bouwbudget)"));
+  emHeader.appendChild(h("button",{className:"btn btn-sm",onClick:()=>{
+    state.modal={type:"eigen",data:{id:uid(),leverancier:"",bedrag:0,btw:0,datum:new Date().toISOString().slice(0,10),omschrijving:"",type:"cash"}};render();
+  }},"+ Toevoegen"));
+  main.appendChild(emHeader);
+
+  const card2 = h("div",{className:"card",style:{padding:"0",overflow:"hidden"}});
+  const hdr2 = h("div",{className:"em-row",style:{borderBottom:"1px solid var(--border)",fontSize:"10px",fontWeight:"600",color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:".04em"}});
+  hdr2.innerHTML = `<span>Datum</span><span>Leverancier</span><span class="hide-mobile">Omschrijving</span><span class="mono" style="text-align:right">Bedrag</span><span>Type</span><span></span>`;
+  card2.appendChild(hdr2);
+
+  [...state.eigenMiddelen].sort((a,b)=>b.datum.localeCompare(a.datum)).forEach(em => {
+    const row = h("div",{className:"em-row"});
+    row.innerHTML = `
+      <span class="mono" style="color:var(--text-muted)">${em.datum}</span>
+      <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${em.leverancier}</span>
+      <span class="hide-mobile" style="color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${em.omschrijving}</span>
+      <span class="mono" style="text-align:right;font-weight:600">${fmt(em.bedrag)}</span>
+      <span class="pill ${em.type==="cash"?"pill-cash":"pill-savings"}">${em.type==="cash"?"CASH":"SPAAR"}</span>
+    `;
+    const actions = h("div",{style:{display:"flex",gap:"3px"}});
+    actions.appendChild(h("button",{style:{background:"none",border:"none",fontSize:"13px",padding:"2px",cursor:"pointer"},onClick:()=>{state.modal={type:"eigen",data:{...em}};render();}},"✏️"));
+    actions.appendChild(h("button",{style:{background:"none",border:"none",fontSize:"13px",padding:"2px",cursor:"pointer"},onClick:()=>{state.eigenMiddelen=state.eigenMiddelen.filter(i=>i.id!==em.id);saveState();render();}},"🗑️"));
+    row.appendChild(actions);
+    card2.appendChild(row);
+  });
+
+  // Total
+  const totRow = h("div",{className:"em-row",style:{borderTop:"2px solid var(--border)",fontWeight:"700",fontSize:"12px"}});
+  totRow.innerHTML = `<span></span><span></span><span class="hide-mobile">Totaal eigen middelen</span><span class="mono" style="text-align:right;color:var(--warning)">${fmt(totalEM)}</span><span></span><span></span>`;
+  card2.appendChild(totRow);
+  main.appendChild(card2);
+}
+
+// ── LENING ──
+function renderLening(main, loanUsed, loanRemaining, totalEM) {
+  // Stats
+  const stats = h("div",{className:"card-grid",style:{gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",marginBottom:"16px"}});
+  [{icon:"🏦",label:"Totale lening",val:fmt(LOAN_TOTAL),sub:`${TRANCHE_COUNT} schijven van ${fmt(TRANCHE_AMOUNT)}`},
+   {icon:"📤",label:"Opgenomen",val:fmt(loanUsed),sub:`${state.tranchesUsed} schijven`},
+   {icon:"💰",label:"Beschikbaar",val:fmt(loanRemaining),sub:`${TRANCHE_COUNT-state.tranchesUsed} schijven resterend`},
+   {icon:"💶",label:"Eigen middelen",val:fmt(totalEM),sub:"Buiten bouwbudget"}
+  ].forEach(s => {
+    const c = h("div",{className:"card"});
+    c.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${s.icon} ${s.label}</div>
+      <div class="mono" style="font-size:22px;font-weight:700">${s.val}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${s.sub}</div>`;
+    stats.appendChild(c);
+  });
+  main.appendChild(stats);
+
+  // Info
+  const info = h("div",{className:"card",style:{marginBottom:"16px"}});
+  info.innerHTML = `<div style="font-size:12px;color:var(--text-muted);line-height:1.7"><strong style="color:var(--text)">ℹ️ Hoe werkt het?</strong><br>
+    De lening van ${fmt(LOAN_TOTAL)} wordt in ${TRANCHE_COUNT} schijven van ${fmt(TRANCHE_AMOUNT)} uitbetaald. 
+    Uitgaven uit <strong>eigen zak</strong> (cash/spaargeld) gaan <em>niet</em> af van de lening — dit zijn eigen middelen (${fmt(totalEM)} tot nu toe).</div>`;
+  main.appendChild(info);
+
+  // Schijven
+  const schCard = h("div",{className:"card",style:{marginBottom:"16px"}});
+  schCard.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"14px"}},"Schijven"));
+  const schGrid = h("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"14px"}});
+  for (let i=0; i<TRANCHE_COUNT; i++) {
+    const active = i < state.tranchesUsed;
+    schGrid.appendChild(h("button",{className:"schijf-btn"+(active?" active":""),onClick:()=>{
+      state.tranchesUsed = (i+1===state.tranchesUsed) ? i : i+1;
+      saveState(); render();
+    }},String(i+1)));
+  }
+  schCard.appendChild(schGrid);
+  schCard.appendChild(h("p",{style:{fontSize:"12px",color:"var(--text-muted)"}},`Klik op een schijf om aan te geven hoeveel er al opgenomen zijn.`));
+  main.appendChild(schCard);
+
+  // Savings
+  const savCard = h("div",{className:"card"});
+  savCard.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"12px"}},"Spaarsaldo aanpassen"));
+  const savRow = h("div",{style:{display:"flex",gap:"10px",alignItems:"center"}});
+  const savInput = h("input",{type:"number",className:"form-input mono",value:state.savings,style:{width:"180px",fontSize:"16px",fontWeight:"600"},
+    onInput:(e)=>{state.savings=parseFloat(e.target.value)||0;saveState();}
+  });
+  savRow.appendChild(savInput);
+  savRow.appendChild(h("span",{style:{fontSize:"12px",color:"var(--text-muted)"}},"Huidig spaarsaldo"));
+  savCard.appendChild(savRow);
+  main.appendChild(savCard);
+}
+
+// ── SETTINGS ──
+function renderSettings(main) {
+  // API Key
+  const apiCard = h("div",{className:"card",style:{marginBottom:"16px"}});
+  apiCard.appendChild(h("h3",{style:{fontSize:"14px",fontWeight:"600",marginBottom:"6px"}},"🔑 Anthropic API-key"));
+  apiCard.appendChild(h("p",{style:{fontSize:"12px",color:"var(--text-muted)",marginBottom:"12px",lineHeight:"1.6"}},
+    "Nodig voor de AI-factuurscan. Maak een account aan op console.anthropic.com, laad krediet op (min. $5), en plak je key hieronder. De key wordt lokaal opgeslagen in je browser en nergens anders naartoe gestuurd."
+  ));
+  const apiInput = h("input",{type:"password",className:"form-input mono",placeholder:"sk-ant-...",value:state.apiKey,
+    onInput:(e)=>{state.apiKey=e.target.value.trim();saveState();}
+  });
+  apiCard.appendChild(apiInput);
+  if (state.apiKey) {
+    apiCard.appendChild(h("div",{style:{marginTop:"8px",fontSize:"12px",color:"var(--success)",fontWeight:"600"}},"✅ API-key ingesteld — factuurscan is actief"));
+  } else {
+    apiCard.appendChild(h("div",{style:{marginTop:"8px",fontSize:"12px",color:"var(--warning)",fontWeight:"600"}},"⚠️ Geen key ingesteld — factuurscan werkt niet, manueel invoeren wel"));
+  }
+  main.appendChild(apiCard);
+
+  // About
+  const aboutCard = h("div",{className:"card",style:{marginBottom:"16px"}});
+  aboutCard.innerHTML = `<h3 style="font-size:14px;font-weight:600;margin-bottom:10px">Over Ons Huisje</h3>
+    <p style="font-size:12px;color:var(--text-muted);line-height:1.7">
+      <strong>Bouwbudget (${fmt(TOTAL_BUDGET)}):</strong> bouwfases A–Z (${fmt(BOUW_BUDGET)}, incl. BTW, −25% zelf werken) + keuken & badkamer (${fmt(KBK_BUDGET)}, incl. BTW, geen −25%).<br><br>
+      <strong>Eigen middelen:</strong> kosten uit eigen zak staan buiten het bouwbudget.<br><br>
+      <strong>Data:</strong> alles wordt lokaal in je browser opgeslagen. Dezelfde data op een ander toestel? Open dezelfde URL.
+    </p>`;
+  main.appendChild(aboutCard);
+
+  // Reset
+  main.appendChild(h("button",{className:"btn",style:{background:"var(--danger-soft)",color:"var(--danger)",border:"1px solid rgba(196,91,74,0.3)"},onClick:()=>{
+    if(confirm("Weet je zeker dat je alles wilt resetten?")){
+      localStorage.removeItem("onshuisje-v"+DATA_VERSION);
+      state.invoices=[]; state.eigenMiddelen=[...INITIAL_EIGEN_MIDDELEN]; state.savings=SAVINGS_INITIAL; state.tranchesUsed=0;
+      render();
+    }
+  }},"🗑️ Alle data resetten"));
+}
+
+// ── MODAL ──
+function renderModal(app) {
+  const m = state.modal;
+  const overlay = h("div",{className:"modal-overlay",onClick:(e)=>{if(e.target===overlay){state.modal=null;render();}}});
+  const modal = h("div",{className:"modal slide-up"});
+
+  if (m.type === "duplicate") {
+    modal.innerHTML = `
+      <div style="text-align:center;font-size:36px;margin-bottom:10px">⚠️</div>
+      <h3 style="text-align:center;color:var(--danger)">Mogelijke dubbele factuur!</h3>
+      <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:14px;line-height:1.5">
+        Er bestaat al een factuur met dezelfde leverancier, bedrag en datum:
+      </p>
+      <div style="background:var(--danger-soft);border-radius:10px;padding:12px 16px;margin-bottom:16px;border:1px solid rgba(196,91,74,0.2)">
+        <div style="font-size:12px;margin-bottom:3px"><strong>Bestaand:</strong> ${m.existing.leverancier}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${fmt(m.existing.bedrag)} · ${m.existing.datum} · ${m.existing.omschrijving}</div>
+      </div>
+    `;
+    const actions = h("div",{className:"form-actions"});
+    actions.appendChild(h("button",{className:"btn",style:{flex:"1"},onClick:()=>{state.modal=null;render();}},"Annuleren"));
+    actions.appendChild(h("button",{className:"btn btn-danger",style:{flex:"1"},onClick:()=>{
+      state.invoices.push(m.newInvoice);
+      saveState(); state.modal=null; render();
+    }},"Toch toevoegen"));
+    modal.appendChild(actions);
+  }
+  else if (m.type === "invoice") {
+    const d = m.data;
+    modal.appendChild(h("h3",{},
+      d.aiSuggested ? "🤖 AI Suggestie — Factuur bewerken" : (state.invoices.find(i=>i.id===d.id) ? "Factuur bewerken" : "Factuur toevoegen")
+    ));
+
+    const fields = [
+      {key:"leverancier",label:"Leverancier / Aannemer",type:"text"},
+      {key:"bedrag",label:"Bedrag (excl. BTW)",type:"number"},
+      {key:"btw",label:"BTW-bedrag",type:"number"},
+      {key:"datum",label:"Datum",type:"date"},
+      {key:"omschrijving",label:"Omschrijving",type:"text"},
+    ];
+    fields.forEach(f => {
+      const grp = h("div",{className:"form-group"});
+      grp.appendChild(h("label",{className:"form-label"},f.label));
+      grp.appendChild(h("input",{type:f.type,className:"form-input"+(f.type==="number"?" mono":""),value:d[f.key],
+        onInput:(e)=>{d[f.key]=f.type==="number"?parseFloat(e.target.value)||0:e.target.value;}
+      }));
+      modal.appendChild(grp);
+    });
+
+    // Fase select
+    const faseGrp = h("div",{className:"form-group"});
+    faseGrp.appendChild(h("label",{className:"form-label"},"Fase"));
+    const sel = h("select",{className:"form-input",onChange:(e)=>{d.fase=e.target.value;}});
+    ALL_FASES.forEach(f=>{
+      const opt = h("option",{value:f.id},f.id+" — "+f.name);
+      if(f.id===d.fase) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    faseGrp.appendChild(sel);
+    modal.appendChild(faseGrp);
+
+    // Info
+    modal.appendChild(h("div",{style:{marginBottom:"14px",padding:"10px 14px",borderRadius:"10px",background:"var(--accent-soft)",fontSize:"11px",color:"var(--accent)",lineHeight:"1.5"}},
+      "ℹ️ Facturen gaan af van het bouwbudget (lening). Kosten uit eigen zak voeg je toe bij \"Eigen middelen\" in het facturen-tabblad."
+    ));
+
+    const actions = h("div",{className:"form-actions"});
+    actions.appendChild(h("button",{className:"btn",style:{flex:"1"},onClick:()=>{state.modal=null;render();}},"Annuleren"));
+    actions.appendChild(h("button",{className:"btn btn-primary",style:{flex:"2"},onClick:()=>{
+      const dup = checkDuplicate(d);
+      if (dup) { state.modal = {type:"duplicate",newInvoice:{...d},existing:dup}; render(); return; }
+      const idx = state.invoices.findIndex(i=>i.id===d.id);
+      if(idx>=0) state.invoices[idx]={...d}; else state.invoices.push({...d});
+      saveState(); state.modal=null; render();
+    }},"Opslaan"));
+    modal.appendChild(actions);
+  }
+  else if (m.type === "eigen") {
+    const d = m.data;
+    modal.appendChild(h("h3",{},"💶 Eigen middel "+(state.eigenMiddelen.find(e=>e.id===d.id)?"bewerken":"toevoegen")));
+    [{key:"leverancier",label:"Aan wie betaald",type:"text"},{key:"bedrag",label:"Bedrag",type:"number"},{key:"datum",label:"Datum",type:"date"},{key:"omschrijving",label:"Omschrijving",type:"text"}].forEach(f => {
+      const grp = h("div",{className:"form-group"});
+      grp.appendChild(h("label",{className:"form-label"},f.label));
+      grp.appendChild(h("input",{type:f.type,className:"form-input"+(f.type==="number"?" mono":""),value:d[f.key],
+        onInput:(e)=>{d[f.key]=f.type==="number"?parseFloat(e.target.value)||0:e.target.value;}
+      }));
+      modal.appendChild(grp);
+    });
+    // Type
+    const typeGrp = h("div",{className:"form-group"});
+    typeGrp.appendChild(h("label",{className:"form-label"},"Type"));
+    const typeBtns = h("div",{style:{display:"flex",gap:"8px"}});
+    ["cash","savings"].forEach(t => {
+      typeBtns.appendChild(h("button",{className:"btn btn-sm",style:{
+        flex:"1",border:d.type===t?"2px solid var(--warning)":"1px solid var(--border)",
+        background:d.type===t?"var(--warning-soft)":"var(--surface-2)",
+        color:d.type===t?"var(--warning)":"var(--text-muted)"
+      },onClick:()=>{d.type=t;render();}},t==="cash"?"Cash":"Spaargeld"));
+    });
+    typeGrp.appendChild(typeBtns);
+    modal.appendChild(typeGrp);
+
+    const actions = h("div",{className:"form-actions"});
+    actions.appendChild(h("button",{className:"btn",style:{flex:"1"},onClick:()=>{state.modal=null;render();}},"Annuleren"));
+    actions.appendChild(h("button",{className:"btn",style:{flex:"2",background:"var(--warning)",color:"#000",border:"none"},onClick:()=>{
+      const idx = state.eigenMiddelen.findIndex(i=>i.id===d.id);
+      if(idx>=0) state.eigenMiddelen[idx]={...d}; else state.eigenMiddelen.push({...d});
+      saveState(); state.modal=null; render();
+    }},"Opslaan"));
+    modal.appendChild(actions);
+  }
+  else if (m.type === "loading") {
+    modal.innerHTML = `<div style="text-align:center;padding:20px">
+      <div style="font-size:48px;margin-bottom:14px;animation:pulse 1.5s infinite">🤖</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:4px">AI leest factuur...</div>
+      <div style="font-size:12px;color:var(--text-muted)">Even geduld, de factuur wordt geanalyseerd</div>
+    </div>`;
+  }
+
+  overlay.appendChild(modal);
+  app.appendChild(overlay);
+}
+
+// ── FILE UPLOAD ──
+async function handleFileUpload(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  e.target.value = "";
+
+  if (!state.apiKey) {
+    state.modal = {type:"invoice",data:{id:uid(),leverancier:"",bedrag:0,btw:0,datum:new Date().toISOString().slice(0,10),fase:ALL_FASES[0].id,omschrijving:"",type:"invoice",aiSuggested:false}};
+    render();
+    return;
+  }
+
+  state.modal = {type:"loading"};
+  render();
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const base64 = ev.target.result.split(",")[1];
+    const result = await readInvoiceAI(base64, file.name);
+    if (result) {
+      state.modal = {type:"invoice",data:{
+        id:uid(),leverancier:result.leverancier||"",bedrag:result.bedrag||0,btw:result.btw||0,
+        datum:result.datum||new Date().toISOString().slice(0,10),
+        fase:result.fase||ALL_FASES[0].id,omschrijving:result.omschrijving||"",type:"invoice",aiSuggested:true
+      }};
+    } else {
+      state.modal = {type:"invoice",data:{id:uid(),leverancier:"",bedrag:0,btw:0,datum:new Date().toISOString().slice(0,10),fase:ALL_FASES[0].id,omschrijving:"",type:"invoice",aiSuggested:false}};
+    }
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+loadState();
+render();
+
+// Register SW for PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+</script>
+</body>
+</html>
