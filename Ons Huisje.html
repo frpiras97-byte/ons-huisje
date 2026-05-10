@@ -262,7 +262,7 @@ function saveState(s) {
 }
 
 async function readInvoiceWithAI(base64, fileName, apiKey) {
-  if (!apiKey) return null;
+  if (!apiKey) throw new Error("Geen API-sleutel ingesteld. Ga naar Instellingen ⚙️ en plak je sleutel.");
   const mt = fileName.match(/\.png$/i) ? "image/png"
            : fileName.match(/\.jpe?g$/i) ? "image/jpeg"
            : "application/pdf";
@@ -270,8 +270,9 @@ async function readInvoiceWithAI(base64, fileName, apiKey) {
     ? { type:"document", source:{ type:"base64", media_type:"application/pdf", data:base64 } }
     : { type:"image",    source:{ type:"base64", media_type:mt, data:base64 } };
   const faseOpts = ALL_FASES.map(f => `${f.id}: ${f.name}`).join(", ");
+  let resp;
   try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -288,10 +289,23 @@ async function readInvoiceWithAI(base64, fileName, apiKey) {
         ]}]
       })
     });
-    const data = await resp.json();
-    const txt = (data.content || []).find(b => b.type==="text")?.text || "";
+  } catch (netErr) {
+    throw new Error("Netwerkfout: kan Anthropic niet bereiken. Check je internet. (" + netErr.message + ")");
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const msg = data?.error?.message || `HTTP ${resp.status}`;
+    if (resp.status === 401) throw new Error("API-sleutel ongeldig of verlopen. Maak een nieuwe in console.anthropic.com.");
+    if (resp.status === 429) throw new Error("Te veel verzoeken óf geen krediet meer. Check Billing op console.anthropic.com.");
+    if (resp.status === 400 && /credit|balance/i.test(msg)) throw new Error("Geen krediet meer op je Anthropic-account. Laad bij op console.anthropic.com → Billing.");
+    throw new Error("API-fout: " + msg);
+  }
+  const txt = (data.content || []).find(b => b.type==="text")?.text || "";
+  try {
     return JSON.parse(txt.replace(/```json\s*/g,"").replace(/```/g,"").trim());
-  } catch { return null; }
+  } catch {
+    throw new Error("AI gaf geen leesbaar antwoord terug. Probeer opnieuw of voeg manueel toe.");
+  }
 }
 
 /* ════════════════════════════════════════
@@ -1801,7 +1815,15 @@ function App() {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = ev.target.result.split(",")[1];
-      const result = await readInvoiceWithAI(b64, file.name, apiKey);
+      let result = null;
+      let aiError = null;
+      try {
+        result = await readInvoiceWithAI(b64, file.name, apiKey);
+      } catch (err) {
+        aiError = err.message || String(err);
+        console.error("AI scan failed:", err);
+        alert("⚠️ AI-scan mislukt:\n\n" + aiError + "\n\nJe kan de factuur manueel invullen.");
+      }
       setModal({
         type:"invoice",
         invoice: {
@@ -1815,6 +1837,10 @@ function App() {
           aiSuggested: !!result
         }
       });
+    };
+    reader.onerror = () => {
+      alert("⚠️ Kon bestand niet lezen.");
+      setModal(null);
     };
     reader.readAsDataURL(file);
   }, [apiKey]);

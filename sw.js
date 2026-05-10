@@ -1,6 +1,6 @@
 /* Ons Huisje — Service Worker
    Cache-first voor app-shell, network-first voor Supabase API */
-const CACHE = "onshuisje-v6";
+const CACHE = "onshuisje-v7";
 const ASSETS = [
   "./",
   "./Ons Huisje.html",
