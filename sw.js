@@ -1,6 +1,6 @@
 /* Ons Huisje — Service Worker
    Cache-first voor app-shell, network-first voor Supabase API */
-const CACHE = "onshuisje-v7";
+const CACHE = "onshuisje-v8";
 const ASSETS = [
   "./",
   "./Ons Huisje.html",
@@ -32,6 +32,11 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
+  // Anthropic API: altijd live, niet cachen (POST requests + CORS)
+  if (url.hostname.includes("anthropic.com")) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   // Supabase calls: altijd live (geen cache, anders zou data oud zijn)
   if (url.hostname.includes("supabase.co")) {
     e.respondWith(fetch(e.request).catch(() => new Response(JSON.stringify({ error: "offline" }), { status: 503, headers: { "Content-Type": "application/json" } })));
