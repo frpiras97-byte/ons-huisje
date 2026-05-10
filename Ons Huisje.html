@@ -109,6 +109,55 @@ button { cursor: pointer; border: none; background: none; }
 @media (max-width: 600px) {
   .hide-mobile { display: none !important; }
   .mobile-stack { flex-direction: column !important; }
+
+  /* Stack any 2-column grid into 1 column on mobile */
+  .stack-sm { grid-template-columns: 1fr !important; }
+
+  /* App-header: stack title row + actions; shrink fonts */
+  .app-header-inner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 10px 14px !important;
+  }
+  .app-title-row { gap: 6px !important; }
+  .app-title-row h1 { font-size: 17px !important; white-space: nowrap; }
+  .app-title-row h1 .emoji { font-size: 18px !important; }
+  .app-subtitle { font-size: 10px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-actions { justify-content: flex-end !important; gap: 6px !important; }
+
+  /* Big mono numbers should never overflow on small screens */
+  .num-fit {
+    font-size: 19px !important;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+  .num-fit-sm {
+    font-size: 15px !important;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* Tighter padding on cards */
+  .card-pad-sm { padding: 14px !important; }
+
+  /* Facturen list: switch from 6-column grid to flexible 2-row layout */
+  .invoice-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px 10px !important;
+    align-items: center !important;
+    padding: 10px 12px !important;
+  }
+  .invoice-row .col-date { flex: 0 0 auto; font-size: 11px; color: var(--tx3); }
+  .invoice-row .col-supp { flex: 1 1 100%; order: 2; font-weight: 600; font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .invoice-row .col-amount { margin-left: auto; text-align: right; }
+  .invoice-row .col-actions { flex: 0 0 auto; order: 3; margin-left: auto; }
+  .invoice-row .col-fase { order: 1; }
+
+  /* Hide the table-style header on mobile (rows are self-explanatory) */
+  .invoice-head { display: none !important; }
 }
 </style>
 </head>
@@ -783,12 +832,12 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
   return (
     <div>
       {/* Budget blocks */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-        <Card className="anim-fadeup" style={{ padding:20 }}>
+      <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        <Card className="anim-fadeup card-pad-sm" style={{ padding:20 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>
             🏗️ Bouwfases A–Z
           </div>
-          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
+          <div className="num-fit" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
             {fmt(BOUW_BUDGET)}
           </div>
           <div style={{ fontSize:12, color:"var(--tx2)", marginBottom:12, lineHeight:1.4 }}>
@@ -803,11 +852,11 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
           </div>
         </Card>
 
-        <Card className="anim-fadeup d1" style={{ padding:20 }}>
+        <Card className="anim-fadeup d1 card-pad-sm" style={{ padding:20 }}>
           <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>
             🚿 Keuken & badkamer
           </div>
-          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
+          <div className="num-fit" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
             {fmt(KBK_BUDGET)}
           </div>
           <div style={{ fontSize:12, color:"var(--tx2)", marginBottom:12, lineHeight:1.4 }}>
@@ -843,7 +892,7 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
       {/* Finance cards */}
       <Card className="anim-fadeup d3" style={{ padding:20, marginBottom:12 }}>
         <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Financiering</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+        <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
           <div style={{
             background:"var(--sf2)", borderRadius:"var(--r-lg)",
             padding:"14px 16px", borderLeft:"3px solid var(--accent)"
@@ -879,7 +928,7 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
             </div>
           </div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <div style={{
             background:"var(--sf2)", borderRadius:"var(--r-md)",
             padding:"11px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"
@@ -1162,7 +1211,7 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
       {/* Invoice list */}
       <Card style={{ padding:0, marginBottom:26 }}>
         {/* Column header */}
-        <div style={{
+        <div className="invoice-head" style={{
           display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
           gap:6, padding:"9px 14px",
           fontSize:10, fontWeight:700, color:"var(--tx4)",
@@ -1183,21 +1232,21 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
           </div>
         ) : (
           filtered.map((inv, idx) => (
-            <div key={inv.id} style={{
+            <div key={inv.id} className="invoice-row" style={{
               display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
               gap:6, padding:"10px 14px", fontSize:13, alignItems:"center",
               borderBottom:"1px solid var(--brd)",
               background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)"
             }}>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{inv.datum}</span>
-              <div style={{ overflow:"hidden" }}>
+              <span className="col-date" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{inv.datum}</span>
+              <div className="col-supp" style={{ overflow:"hidden" }}>
                 <div style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inv.leverancier}</div>
               </div>
               <div className="hide-mobile" style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:12, color:"var(--tx3)" }}>
                 {inv.omschrijving}
               </div>
               <div className="hide-mobile"><Badge>{inv.fase}</Badge></div>
-              <div style={{ textAlign:"right" }}>
+              <div className="col-amount" style={{ textAlign:"right" }}>
                 <div style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, fontSize:13 }}>
                   {fmt((inv.bedrag||0)+(inv.btw||0))}
                 </div>
@@ -1205,7 +1254,7 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
                   {fmt(inv.bedrag||0)}+{fmt(inv.btw||0)}
                 </div>
               </div>
-              <div style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
+              <div className="col-actions" style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
                 <button onClick={() => onEditInvoice(inv)} style={{ padding:"3px 5px", fontSize:13, borderRadius:5, background:"transparent" }}>✏️</button>
                 <button onClick={() => onDeleteInvoice(inv.id)} style={{ padding:"3px 5px", fontSize:13, borderRadius:5, background:"transparent" }}>🗑️</button>
               </div>
@@ -1238,7 +1287,7 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
       </div>
 
       <Card style={{ padding:0 }}>
-        <div style={{
+        <div className="invoice-head" style={{
           display:"grid", gridTemplateColumns:"86px 1fr 1fr 80px 70px 50px",
           gap:6, padding:"9px 14px",
           fontSize:10, fontWeight:700, color:"var(--tx4)",
@@ -1253,23 +1302,23 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
         </div>
 
         {[...eigenMiddelen].sort((a,b) => b.datum.localeCompare(a.datum)).map((em, idx) => (
-          <div key={em.id} style={{
+          <div key={em.id} className="invoice-row" style={{
             display:"grid", gridTemplateColumns:"86px 1fr 1fr 80px 70px 50px",
             gap:6, padding:"10px 14px", fontSize:13, alignItems:"center",
             borderBottom:"1px solid var(--brd)",
             background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)"
           }}>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{em.datum}</span>
-            <span style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{em.leverancier}</span>
+            <span className="col-date" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{em.datum}</span>
+            <span className="col-supp" style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{em.leverancier}</span>
             <span className="hide-mobile" style={{ fontSize:12, color:"var(--tx3)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{em.omschrijving}</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right" }}>{fmt(em.bedrag)}</span>
-            <div style={{ display:"flex", justifyContent:"center" }}>
+            <span className="col-amount" style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right" }}>{fmt(em.bedrag)}</span>
+            <div className="col-fase" style={{ display:"flex", justifyContent:"center" }}>
               <Badge
                 color={em.type==="cash" ? "var(--amber)" : "var(--blue)"}
                 bg={em.type==="cash" ? "var(--amber-l)" : "var(--blue-l)"}
               >{em.type==="cash" ? "CASH" : "SPAAR"}</Badge>
             </div>
-            <div style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
+            <div className="col-actions" style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
               <button onClick={() => onEditEM(em)} style={{ padding:"3px 5px", fontSize:13 }}>✏️</button>
               <button onClick={() => onDeleteEM(em.id)} style={{ padding:"3px 5px", fontSize:13 }}>🗑️</button>
             </div>
@@ -1810,23 +1859,23 @@ function App() {
         backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
         borderBottom:"1px solid var(--brd)",
       }}>
-        <div style={{
+        <div className="app-header-inner" style={{
           maxWidth:940, margin:"0 auto",
           padding:"13px 20px",
           display:"flex", alignItems:"center", justifyContent:"space-between", gap:12
         }}>
-          <div>
-            <h1 style={{
+          <div style={{ minWidth:0, flex:1 }}>
+            <h1 className="app-title-row" style={{
               fontSize:19, fontWeight:800, letterSpacing:"-0.02em",
               display:"flex", alignItems:"center", gap:9
             }}>
-              <span style={{fontSize:22}}>👨‍👩‍👧</span>Ons Huisje
+              <span className="emoji" style={{fontSize:22}}>👨‍👩‍👧</span>Ons Huisje
             </h1>
-            <p style={{ fontSize:11, color:"var(--tx3)", marginTop:1 }}>
+            <p className="app-subtitle" style={{ fontSize:11, color:"var(--tx3)", marginTop:1 }}>
               Piras — Venken · Kersenweg 3, Dilsen-Stokkem
             </p>
           </div>
-          <div style={{ display:"flex", gap:7, alignItems:"center" }}>
+          <div className="app-actions" style={{ display:"flex", gap:7, alignItems:"center" }}>
             <SyncIndicator
               status={sync.syncStatus}
               lastSync={sync.lastSync}
