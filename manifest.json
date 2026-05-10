@@ -1,15 +1,19 @@
 {
   "name": "Ons Huisje — Bouwbudget",
   "short_name": "Ons Huisje",
-  "start_url": ".",
+  "start_url": "./Ons Huisje.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#F5F0EB",
-  "theme_color": "#F5F0EB",
+  "orientation": "portrait",
+  "background_color": "#F4EEE6",
+  "theme_color": "#F4EEE6",
+  "description": "Bouwbudget tracker voor Ons Huisje — Piras & Venken",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23F4EEE6'/><text x='50' y='72' text-anchor='middle' font-size='62'>🏠</text></svg>",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

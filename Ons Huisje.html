@@ -1,0 +1,1969 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ons Huisje">
+<meta name="theme-color" content="#F4EEE6">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23F4EEE6'/><text x='50' y='72' text-anchor='middle' font-size='62'>🏠</text></svg>">
+<title>Ons Huisje — Bouwbudget</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// Service worker registratie (PWA installeerbaar + offline)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW reg failed:", err));
+  });
+}
+</script>
+<style>
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: 'Outfit', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--tx);
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* iPhone safe-area (notch / Dynamic Island / home-indicator) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* Voorkom "pull-to-refresh" en bounce in standalone-mode */
+  overscroll-behavior-y: contain;
+}
+input, select, textarea, button { font-family: inherit; }
+button { cursor: pointer; border: none; background: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--brd); border-radius: 4px; }
+
+/* ── Design Tokens ── */
+:root {
+  --bg:       #F4EEE6;
+  --bg2:      #EDE6DC;
+  --sf1:      #FDFAF7;
+  --sf2:      #F0EAE1;
+  --sf3:      #E5DDD3;
+  --brd:      #D8CFC4;
+  --brd2:     #C9BFB3;
+  --tx:       #28211A;
+  --tx2:      #6B5D4F;
+  --tx3:      #9E8D7E;
+  --tx4:      #BDB0A4;
+
+  --accent:   #A8714A;
+  --accent-l: rgba(168,113,74,0.12);
+  --accent-d: #8C5C35;
+
+  --green:    #4E7E52;
+  --green-l:  rgba(78,126,82,0.12);
+
+  --red:      #B8493A;
+  --red-l:    rgba(184,73,58,0.10);
+
+  --amber:    #B8872B;
+  --amber-l:  rgba(184,135,43,0.12);
+
+  --blue:     #4A7C96;
+  --blue-l:   rgba(74,124,150,0.12);
+
+  --r-sm:   8px;
+  --r-md:   12px;
+  --r-lg:   16px;
+  --r-xl:   20px;
+
+  --sh-sm:  0 1px 3px rgba(40,33,26,0.05), 0 1px 2px rgba(40,33,26,0.04);
+  --sh-md:  0 4px 12px rgba(40,33,26,0.07), 0 1px 3px rgba(40,33,26,0.05);
+  --sh-lg:  0 12px 32px rgba(40,33,26,0.10), 0 4px 8px rgba(40,33,26,0.06);
+}
+
+/* ── Keyframes ── */
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn  { from { opacity: 0; transform: scale(0.96); }     to { opacity: 1; transform: scale(1);    } }
+@keyframes pulse    { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+@keyframes shimmer  { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes slideInR { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.anim-fadeup  { animation: fadeUp  0.35s cubic-bezier(0.22,1,0.36,1) both; }
+.anim-scalein { animation: scaleIn 0.25s cubic-bezier(0.22,1,0.36,1) both; }
+.d1 { animation-delay: 0.05s; }
+.d2 { animation-delay: 0.10s; }
+.d3 { animation-delay: 0.15s; }
+.d4 { animation-delay: 0.20s; }
+.d5 { animation-delay: 0.25s; }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .hide-mobile { display: none !important; }
+  .mobile-stack { flex-direction: column !important; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="sync.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback, Fragment } = React;
+
+/* ════════════════════════════════════════
+   DATA CONSTANTS
+════════════════════════════════════════ */
+const LOAN_TOTAL      = 342000;
+const TRANCHE_COUNT   = 10;
+const TRANCHE_AMOUNT  = LOAN_TOTAL / TRANCHE_COUNT;
+const SAVINGS_INITIAL = 7100;
+const BOUW_BUDGET     = 293860.70;
+const KBK_BUDGET      = 48400.00;
+const TOTAL_BUDGET    = 342260.70;
+const DATA_VERSION    = 3;
+const STORAGE_KEY     = `onshuisje-v${DATA_VERSION}`;
+
+const MEETSTAAT_BOUW = [
+  { id: "A",   name: "Algemene voorzieningen",       budget: 6443.25  },
+  { id: "B",   name: "Grondwerken",                  budget: 6373.92  },
+  { id: "C",   name: "Betonwerken",                  budget: 38834.92 },
+  { id: "D",   name: "Holle welfsels",               budget: 16225.92 },
+  { id: "E",   name: "Metselwerk",                   budget: 52257.30 },
+  { id: "F",   name: "Voegwerken",                   budget: 3669.20  },
+  { id: "G",   name: "Isolatiewerken",               budget: 37081.27 },
+  { id: "H",   name: "Tegel- & parketwerken",        budget: 16097.05 },
+  { id: "I-K", name: "Arduin, marmer & afcementeren",budget: 5383.20  },
+  { id: "M",   name: "Chappe",                       budget: 3929.20  },
+  { id: "N",   name: "Bezetwerk",                    budget: 12637.66 },
+  { id: "O",   name: "Timmerwerk",                   budget: 11410.81 },
+  { id: "P-Q", name: "Ramen, deuren & glas",         budget: 17880.47 },
+  { id: "R",   name: "Dakwerken",                    budget: 7223.34  },
+  { id: "S",   name: "Metaalwerken",                 budget: 9971.97  },
+  { id: "T",   name: "Lood- & zinkwerken",           budget: 1724.52  },
+  { id: "U",   name: "Riolering",                    budget: 5697.28  },
+  { id: "V",   name: "Ventilatie (EPB)",             budget: 6534.00  },
+  { id: "X",   name: "Sanitair",                     budget: 6806.25  },
+  { id: "Y",   name: "Elektriciteit",                budget: 8621.25  },
+  { id: "Z",   name: "Centrale verwarming",          budget: 19057.50 },
+];
+const KBK_FASE  = { id: "KBK", name: "Keuken & badkamer", budget: 48400.00 };
+const ALL_FASES = [...MEETSTAAT_BOUW, KBK_FASE];
+
+const INITIAL_INVOICES_DATA = [
+  { id:"f-1",  leverancier:"Deckers Bouwmaterialen", bedrag:280.09,  btw:58.82,  datum:"2026-02-28", fase:"U", omschrijving:"PVC bochten, buizen, poly...",              type:"invoice" },
+  { id:"f-2",  leverancier:"Deckers Bouwmaterialen", bedrag:2309.27, btw:484.95, datum:"2026-01-31", fase:"G", omschrijving:"IDELCO PIR L T&G 120X60...",               type:"invoice" },
+  { id:"f-3",  leverancier:"Deckers Bouwmaterialen", bedrag:78.22,   btw:16.43,  datum:"2025-12-31", fase:"C", omschrijving:"Cement, betonblok, bitum...",              type:"invoice" },
+  { id:"f-4",  leverancier:"Sipa bv",                bedrag:900.00,  btw:189.00, datum:"2025-12-23", fase:"B", omschrijving:"Vordering uitgevoerde grondwerken",        type:"invoice" },
+  { id:"f-5",  leverancier:"H. KEULEN BETON N.V.",   bedrag:2115.75, btw:444.31, datum:"2025-11-24", fase:"C", omschrijving:"Leveren en storten beton",                 type:"invoice" },
+  { id:"f-6",  leverancier:"H. KEULEN BETON N.V.",   bedrag:309.50,  btw:65.00,  datum:"2025-11-18", fase:"C", omschrijving:"Levering beton met mixer",                 type:"invoice" },
+  { id:"f-7",  leverancier:"Deckers Bouwmaterialen", bedrag:175.75,  btw:36.19,  datum:"2025-11-17", fase:"G", omschrijving:"Polyfoam XPS isolatie, kra...",            type:"invoice" },
+  { id:"f-8",  leverancier:"Deckers Bouwmaterialen", bedrag:754.71,  btw:155.38, datum:"2025-10-15", fase:"C", omschrijving:"Betonblokken, statiegeld",                 type:"invoice" },
+  { id:"f-9",  leverancier:"Deckers Bouwmaterialen", bedrag:3315.93, btw:696.35, datum:"2025-09-30", fase:"C", omschrijving:"Bouwmaterialen – betonblokken",            type:"invoice" },
+  { id:"f-10", leverancier:"H. KEULEN BETON N.V.",   bedrag:2347.50, btw:492.98, datum:"2025-09-23", fase:"C", omschrijving:"Leveren en storten beton",                 type:"invoice" },
+  { id:"f-11", leverancier:"H. KEULEN BETON N.V.",   bedrag:258.00,  btw:54.18,  datum:"2025-09-16", fase:"C", omschrijving:"Standaard Beton C 25/30",                  type:"invoice" },
+  { id:"f-12", leverancier:"Deckers Bouwmaterialen", bedrag:1696.80, btw:349.34, datum:"2025-09-15", fase:"C", omschrijving:"Betonblokken, cement, be...",              type:"invoice" },
+  { id:"f-13", leverancier:"H. KEULEN BETON N.V.",   bedrag:556.75,  btw:116.92, datum:"2025-08-31", fase:"C", omschrijving:"Standaard Beton C 25/30",                  type:"invoice" },
+  { id:"f-14", leverancier:"Deckers Bouwmaterialen", bedrag:508.86,  btw:104.76, datum:"2025-08-31", fase:"C", omschrijving:"Betonblokken, cement, bo...",              type:"invoice" },
+  { id:"f-15", leverancier:"H. KEULEN BETON N.V.",   bedrag:709.50,  btw:149.00, datum:"2025-08-27", fase:"C", omschrijving:"Standaard Beton C 25/30",                  type:"invoice" },
+];
+
+const INITIAL_EIGEN_MIDDELEN = [
+  { id:"em-1", leverancier:"Stabiliteitsingenieur", bedrag:500,  btw:0, datum:"2025-01-01", omschrijving:"Studie stabiliteit (cash)",           type:"cash"    },
+  { id:"em-2", leverancier:"Roel",                  bedrag:300,  btw:0, datum:"2025-01-01", omschrijving:"Hulp kelder",                          type:"cash"    },
+  { id:"em-3", leverancier:"SIPA BV",               bedrag:816,  btw:0, datum:"2025-01-01", omschrijving:"Grondwerken",                          type:"cash"    },
+  { id:"em-4", leverancier:"Luc",                   bedrag:900,  btw:0, datum:"2025-01-01", omschrijving:"Hulp kelder en bouw",                  type:"cash"    },
+  { id:"em-5", leverancier:"Vloerpolijsting",       bedrag:700,  btw:0, datum:"2025-01-01", omschrijving:"Poleren vloer kelder + tuinhuisje",    type:"cash"    },
+  { id:"em-6", leverancier:"Architect Roex",        bedrag:1200, btw:0, datum:"2025-01-01", omschrijving:"Architect (cash)",                     type:"cash"    },
+  { id:"em-7", leverancier:"EPB-verslaggever",      bedrag:2359, btw:0, datum:"2025-01-01", omschrijving:"EPB-verslag (spaargeld)",              type:"savings" },
+  { id:"em-8", leverancier:"Stabiliteitsingenieur", bedrag:955,  btw:0, datum:"2025-01-01", omschrijving:"Stabiliteit (spaargeld)",              type:"savings" },
+  { id:"em-9", leverancier:"Architect Roex",        bedrag:8470, btw:0, datum:"2025-01-01", omschrijving:"Architect (spaargeld)",                type:"savings" },
+];
+
+/* ════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════ */
+const fmt = n => new Intl.NumberFormat("nl-BE", { style:"currency", currency:"EUR" }).format(n);
+const fmtShort = n => {
+  if (Math.abs(n) >= 1000) return `€${(n/1000).toFixed(1).replace(".",",")}k`;
+  return new Intl.NumberFormat("nl-BE", { style:"currency", currency:"EUR", maximumFractionDigits:0 }).format(n);
+};
+const pct  = (a, b) => b === 0 ? 0 : Math.min((a / b) * 100, 100);
+const uid  = () => `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+function saveState(s) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
+async function readInvoiceWithAI(base64, fileName, apiKey) {
+  if (!apiKey) return null;
+  const mt = fileName.match(/\.png$/i) ? "image/png"
+           : fileName.match(/\.jpe?g$/i) ? "image/jpeg"
+           : "application/pdf";
+  const blk = mt === "application/pdf"
+    ? { type:"document", source:{ type:"base64", media_type:"application/pdf", data:base64 } }
+    : { type:"image",    source:{ type:"base64", media_type:mt, data:base64 } };
+  const faseOpts = ALL_FASES.map(f => `${f.id}: ${f.name}`).join(", ");
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role:"user", content:[
+          blk,
+          { type:"text", text:`Lees deze factuur en geef ALLEEN een JSON object terug (geen markdown, geen backticks) met: {"leverancier":"naam","bedrag":getal excl BTW,"btw":BTW bedrag als getal,"datum":"YYYY-MM-DD","omschrijving":"korte omschrijving","fase":"meest passende fase ID"}. Mogelijke fases: ${faseOpts}. Als je iets niet kunt lezen, gebruik null.` }
+        ]}]
+      })
+    });
+    const data = await resp.json();
+    const txt = (data.content || []).find(b => b.type==="text")?.text || "";
+    return JSON.parse(txt.replace(/```json\s*/g,"").replace(/```/g,"").trim());
+  } catch { return null; }
+}
+
+/* ════════════════════════════════════════
+   PRIMITIVE COMPONENTS
+════════════════════════════════════════ */
+function ProgressBar({ value, max, height=8, color, danger=false }) {
+  const p = pct(value, max);
+  const over = danger && value > max;
+  const c = over ? "var(--red)" : (color || "var(--accent)");
+  return (
+    <div style={{
+      width:"100%", height:height, borderRadius:height,
+      background:"var(--sf3)", overflow:"hidden", position:"relative"
+    }}>
+      <div style={{
+        width:`${clamp(p,0,100)}%`, height:"100%", borderRadius:height,
+        background:c,
+        transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)",
+        position:"relative",
+        overflow:"hidden"
+      }}>
+        {over && <div style={{position:"absolute",inset:0,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)",animation:"shimmer 2s linear infinite",backgroundSize:"200% 100%"}} />}
+      </div>
+    </div>
+  );
+}
+
+function Badge({ children, color="var(--accent)", bg="var(--accent-l)" }) {
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center",
+      fontSize:10, fontWeight:700, letterSpacing:"0.05em",
+      color, background:bg, padding:"3px 8px",
+      borderRadius:6, textTransform:"uppercase", whiteSpace:"nowrap"
+    }}>{children}</span>
+  );
+}
+
+function Card({ children, style: s, className="" }) {
+  return (
+    <div className={className} style={{
+      background:"var(--sf1)", borderRadius:"var(--r-xl)",
+      border:"1px solid var(--brd)", boxShadow:"var(--sh-sm)",
+      overflow:"hidden", ...s
+    }}>{children}</div>
+  );
+}
+
+function Stat({ icon, label, value, sub, color="var(--tx)", accent }) {
+  return (
+    <div style={{
+      background:"var(--sf1)", borderRadius:"var(--r-lg)",
+      border:"1px solid var(--brd)", boxShadow:"var(--sh-sm)",
+      padding:"16px 18px",
+    }}>
+      <div style={{ fontSize:11, color:"var(--tx3)", marginBottom:6, display:"flex", alignItems:"center", gap:5, fontWeight:500 }}>
+        {icon && <span>{icon}</span>}{label}
+      </div>
+      <div style={{
+        fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700,
+        color: accent || color, letterSpacing:"-0.02em", lineHeight:1
+      }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:"var(--tx3)", marginTop:6 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Btn({ children, primary, danger, amber, small, icon, style:s, disabled, ...props }) {
+  const bg = danger ? "var(--red)"
+           : amber  ? "var(--amber)"
+           : primary ? "var(--accent)"
+           : "var(--sf1)";
+  const col = (danger || amber || primary) ? "#fff" : "var(--tx)";
+  const brd = (danger || amber || primary) ? "none" : "1px solid var(--brd)";
+  const shad = primary ? "0 2px 8px rgba(168,113,74,0.25)"
+             : amber   ? "0 2px 8px rgba(184,135,43,0.25)"
+             : "none";
+  return (
+    <button
+      {...props}
+      disabled={disabled}
+      style={{
+        display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6,
+        padding: small ? "6px 12px" : "10px 18px",
+        borderRadius: small ? "var(--r-sm)" : "var(--r-md)",
+        fontSize: small ? 12 : 13,
+        fontWeight:600, background:bg, color:col, border:brd, boxShadow:shad,
+        transition:"all 0.15s", opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+        whiteSpace:"nowrap",
+        ...s
+      }}
+    >{children}</button>
+  );
+}
+
+function Input({ label, mono, error, ...props }) {
+  return (
+    <div style={{ marginBottom:14 }}>
+      {label && <label style={{
+        display:"block", fontSize:11, fontWeight:600, color:"var(--tx3)",
+        textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:5
+      }}>{label}</label>}
+      <input
+        {...props}
+        style={{
+          width:"100%", padding:"10px 13px", borderRadius:"var(--r-md)",
+          border:`1px solid ${error ? "var(--red)" : "var(--brd)"}`,
+          background:"var(--sf2)", color:"var(--tx)", fontSize:14, outline:"none",
+          fontFamily: mono ? "'JetBrains Mono',monospace" : "inherit",
+          transition:"border-color 0.15s",
+          ...props.style
+        }}
+      />
+      {error && <div style={{ fontSize:11, color:"var(--red)", marginTop:4 }}>{error}</div>}
+    </div>
+  );
+}
+
+function Select({ label, children, ...props }) {
+  return (
+    <div style={{ marginBottom:14 }}>
+      {label && <label style={{
+        display:"block", fontSize:11, fontWeight:600, color:"var(--tx3)",
+        textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:5
+      }}>{label}</label>}
+      <select
+        {...props}
+        style={{
+          width:"100%", padding:"10px 13px", borderRadius:"var(--r-md)",
+          border:"1px solid var(--brd)", background:"var(--sf2)",
+          color:"var(--tx)", fontSize:14, outline:"none",
+          ...props.style
+        }}
+      >{children}</select>
+    </div>
+  );
+}
+
+function Modal({ children, onClose, maxWidth=460 }) {
+  useEffect(() => {
+    const handler = e => { if (e.key === "Escape") onClose?.(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose?.(); }}
+      style={{
+        position:"fixed", inset:0, zIndex:200,
+        background:"rgba(40,33,26,0.35)",
+        backdropFilter:"blur(10px)", WebkitBackdropFilter:"blur(10px)",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        padding:16
+      }}
+    >
+      <div className="anim-scalein" style={{
+        background:"var(--sf1)", borderRadius:"var(--r-xl)",
+        border:"1px solid var(--brd)", boxShadow:"var(--sh-lg)",
+        padding:26, width:"100%", maxWidth:maxWidth,
+        maxHeight:"90vh", overflowY:"auto"
+      }}>{children}</div>
+    </div>
+  );
+}
+
+function Divider({ style:s }) {
+  return <div style={{ height:1, background:"var(--brd)", margin:"0", ...s }} />;
+}
+
+/* ════════════════════════════════════════
+   INVOICE FORM MODAL
+════════════════════════════════════════ */
+function InvoiceModal({ invoice, onSave, onClose, isEditing }) {
+  const [form, setForm] = useState({ ...invoice });
+  const set = (k, v) => setForm(p => ({ ...p, [k]:v }));
+  const total = (parseFloat(form.bedrag)||0) + (parseFloat(form.btw)||0);
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
+        {form.aiSuggested && <Badge>🤖 AI</Badge>}
+        <h3 style={{ fontSize:18, fontWeight:700, flex:1 }}>
+          {isEditing ? "Factuur bewerken" : "Factuur toevoegen"}
+        </h3>
+        <button onClick={onClose} style={{ fontSize:20, color:"var(--tx3)", padding:4 }}>×</button>
+      </div>
+
+      <Input label="Leverancier / Aannemer" type="text" value={form.leverancier}
+        onChange={e => set("leverancier", e.target.value)} placeholder="bv. Bouwbedrijf Janssen" />
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <Input label="Bedrag excl. BTW" type="number" mono value={form.bedrag}
+          onChange={e => set("bedrag", parseFloat(e.target.value)||0)} />
+        <Input label="BTW-bedrag" type="number" mono value={form.btw}
+          onChange={e => set("btw", parseFloat(e.target.value)||0)} />
+      </div>
+
+      {total > 0 && (
+        <div style={{
+          background:"var(--accent-l)", borderRadius:"var(--r-md)",
+          padding:"9px 13px", marginBottom:14, marginTop:-6,
+          display:"flex", justifyContent:"space-between", alignItems:"center"
+        }}>
+          <span style={{ fontSize:12, color:"var(--tx2)" }}>Totaal incl. BTW</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:15, color:"var(--accent)" }}>{fmt(total)}</span>
+        </div>
+      )}
+
+      <Input label="Datum" type="date" value={form.datum} onChange={e => set("datum", e.target.value)} />
+      <Input label="Omschrijving" type="text" value={form.omschrijving}
+        onChange={e => set("omschrijving", e.target.value)} placeholder="Korte omschrijving" />
+
+      <Select label="Fase" value={form.fase} onChange={e => set("fase", e.target.value)}>
+        {ALL_FASES.map(f => <option key={f.id} value={f.id}>{f.id} — {f.name}</option>)}
+      </Select>
+
+      <div style={{
+        background:"var(--sf2)", borderRadius:"var(--r-md)",
+        padding:"10px 13px", marginBottom:16, fontSize:12, color:"var(--tx3)", lineHeight:1.5
+      }}>
+        ℹ️ Facturen gaan af van het <strong style={{color:"var(--tx2)"}}>bouwbudget (lening)</strong>. Kosten uit eigen zak voeg je toe bij <strong style={{color:"var(--tx2)"}}>Eigen middelen</strong>.
+      </div>
+
+      <div style={{ display:"flex", gap:10 }}>
+        <Btn style={{ flex:1 }} onClick={onClose}>Annuleren</Btn>
+        <Btn primary style={{ flex:2 }} onClick={() => onSave(form)}>Opslaan</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════
+   EIGEN MIDDEL MODAL
+════════════════════════════════════════ */
+function EigenMiddelModal({ item, onSave, onClose }) {
+  const [form, setForm] = useState({ ...item });
+  const set = (k,v) => setForm(p => ({...p,[k]:v}));
+  const isNew = !item._existing;
+
+  return (
+    <Modal onClose={onClose}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
+        <h3 style={{ fontSize:18, fontWeight:700, flex:1 }}>
+          {isNew ? "Eigen middel toevoegen" : "Eigen middel bewerken"}
+        </h3>
+        <button onClick={onClose} style={{ fontSize:20, color:"var(--tx3)", padding:4 }}>×</button>
+      </div>
+
+      <Input label="Aan wie betaald" type="text" value={form.leverancier}
+        onChange={e => set("leverancier", e.target.value)} />
+      <Input label="Bedrag" type="number" mono value={form.bedrag}
+        onChange={e => set("bedrag", parseFloat(e.target.value)||0)} />
+      <Input label="Datum" type="date" value={form.datum}
+        onChange={e => set("datum", e.target.value)} />
+      <Input label="Omschrijving" type="text" value={form.omschrijving}
+        onChange={e => set("omschrijving", e.target.value)} />
+
+      <div style={{ marginBottom:16 }}>
+        <label style={{
+          display:"block", fontSize:11, fontWeight:600, color:"var(--tx3)",
+          textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8
+        }}>Type</label>
+        <div style={{ display:"flex", gap:8 }}>
+          {["cash","savings"].map(t => (
+            <button key={t} onClick={() => set("type", t)} style={{
+              flex:1, padding:"10px 14px", borderRadius:"var(--r-md)",
+              fontSize:13, fontWeight:600, cursor:"pointer",
+              border: form.type===t ? `2px solid var(--amber)` : "1px solid var(--brd)",
+              background: form.type===t ? "var(--amber-l)" : "var(--sf2)",
+              color: form.type===t ? "var(--amber)" : "var(--tx3)",
+              transition:"all 0.15s"
+            }}>
+              {t==="cash" ? "💵 Cash" : "🐷 Spaargeld"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:10 }}>
+        <Btn style={{ flex:1 }} onClick={onClose}>Annuleren</Btn>
+        <Btn amber style={{ flex:2 }} onClick={() => onSave(form)}>Opslaan</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════
+   DUPLICATE WARNING MODAL
+════════════════════════════════════════ */
+function DuplicateModal({ existing, onForce, onCancel }) {
+  return (
+    <Modal onClose={onCancel} maxWidth={400}>
+      <div style={{ textAlign:"center", marginBottom:12 }}>
+        <span style={{ fontSize:44 }}>⚠️</span>
+      </div>
+      <h3 style={{ fontSize:17, fontWeight:700, color:"var(--red)", textAlign:"center", marginBottom:8 }}>
+        Mogelijke dubbele factuur
+      </h3>
+      <p style={{ fontSize:13, color:"var(--tx2)", textAlign:"center", marginBottom:16, lineHeight:1.5 }}>
+        Er bestaat al een factuur met dezelfde leverancier, bedrag en datum:
+      </p>
+      <div style={{
+        background:"var(--red-l)", borderRadius:"var(--r-md)",
+        padding:"12px 15px", marginBottom:20,
+        border:"1px solid rgba(184,73,58,0.2)"
+      }}>
+        <div style={{ fontWeight:600, fontSize:13 }}>{existing.leverancier}</div>
+        <div style={{ fontSize:12, color:"var(--tx2)", marginTop:3 }}>
+          {fmt(existing.bedrag)} excl. BTW · {existing.datum}
+        </div>
+        {existing.omschrijving && <div style={{ fontSize:11, color:"var(--tx3)", marginTop:2 }}>{existing.omschrijving}</div>}
+      </div>
+      <div style={{ display:"flex", gap:10 }}>
+        <Btn style={{ flex:1 }} onClick={onCancel}>Annuleren</Btn>
+        <Btn danger style={{ flex:1 }} onClick={onForce}>Toch toevoegen</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════
+   LOADING MODAL
+════════════════════════════════════════ */
+function LoadingModal() {
+  return (
+    <Modal maxWidth={340}>
+      <div style={{ textAlign:"center", padding:"12px 0 8px" }}>
+        <div style={{ fontSize:52, animation:"pulse 1.5s infinite", marginBottom:14 }}>🤖</div>
+        <div style={{ fontSize:17, fontWeight:700, marginBottom:6 }}>AI leest factuur…</div>
+        <div style={{ fontSize:13, color:"var(--tx3)" }}>Even geduld, de factuur wordt geanalyseerd</div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════
+   SYNC SETUP MODAL
+════════════════════════════════════════ */
+function SyncSetupModal({ initial, onSaved, onClose, onDisable }) {
+  const [step,    setStep]    = useState(initial ? "config" : "intro");
+  const [url,     setUrl]     = useState(initial?.url || "");
+  const [anon,    setAnon]    = useState(initial?.anonKey || "");
+  const [pw,      setPw]      = useState("");
+  const [testing, setTesting] = useState(false);
+  const [err,     setErr]     = useState("");
+  const [errRaw,  setErrRaw]  = useState("");
+  const [showSql, setShowSql] = useState(false);
+
+  const sql = `create table public.huisje_state (
+  room text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+alter table public.huisje_state enable row level security;
+create policy "anon read"   on public.huisje_state for select using (true);
+create policy "anon insert" on public.huisje_state for insert with check (true);
+create policy "anon update" on public.huisje_state for update using (true);
+alter publication supabase_realtime add table public.huisje_state;`;
+
+  const save = async (skipTest=false) => {
+    setErr(""); setErrRaw(""); setTesting(true);
+    try {
+      const u = url.trim().replace(/\/$/, "");
+      const k = anon.trim();
+      if (!u.startsWith("https://") || !k.startsWith("ey")) {
+        setErr("URL moet beginnen met https:// en de anon key met 'ey...'"); setTesting(false); return;
+      }
+      let room = initial?.room;
+      if (pw && pw.length >= 4) {
+        room = await OnsHuisjeSync.hashPassword(pw);
+      } else if (!room) {
+        setErr("Kies een gezamenlijk wachtwoord van minstens 4 tekens."); setTesting(false); return;
+      }
+      if (!skipTest) {
+        const test = await OnsHuisjeSync.testConnection(u, k);
+        if (!test.ok) { setErr(test.reason); setErrRaw(test.raw || ""); setTesting(false); return; }
+      }
+      OnsHuisjeSync.saveSyncConfig({ url: u, anonKey: k, room });
+      onSaved();
+    } catch (e) {
+      console.warn(e);
+      setErr("Kon geen verbinding maken. Check URL en internet.");
+    } finally { setTesting(false); }
+  };
+
+  const sqlBox = { background:"var(--sf2)", padding:"10px 13px", borderRadius:"var(--r-md)", fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx2)", lineHeight:1.55, whiteSpace:"pre-wrap", wordBreak:"break-all", border:"1px solid var(--brd)", maxHeight:200, overflow:"auto" };
+
+  return (
+    <Modal onClose={onClose} maxWidth={560}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:18 }}>
+        <span style={{ fontSize:24 }}>☁️</span>
+        <h3 style={{ fontSize:18, fontWeight:700, flex:1 }}>
+          {step === "intro" ? "Cloud-sync instellen" : (initial ? "Sync-instellingen" : "Verbinding & wachtwoord")}
+        </h3>
+        <button onClick={onClose} style={{ fontSize:20, color:"var(--tx3)", padding:4 }}>×</button>
+      </div>
+
+      {step === "intro" && (
+        <div>
+          <p style={{ fontSize:13, color:"var(--tx2)", lineHeight:1.7, marginBottom:14 }}>
+            Met cloud-sync zien jij en je partner dezelfde facturen op gsm én laptop.
+            We gebruiken <a href="https://supabase.com" target="_blank" rel="noopener" style={{color:"var(--accent)"}}>Supabase</a> — gratis, geen creditcard nodig.
+          </p>
+          <div style={{ background:"var(--accent-l)", borderRadius:"var(--r-md)", padding:"14px 16px", marginBottom:14, fontSize:13, color:"var(--tx2)", lineHeight:1.7 }}>
+            <strong style={{color:"var(--tx)"}}>Eenmalige stappen (≈5 min):</strong>
+            <ol style={{ paddingLeft:20, marginTop:8 }}>
+              <li>Account maken op <a href="https://supabase.com" target="_blank" rel="noopener" style={{color:"var(--accent)"}}>supabase.com</a></li>
+              <li><strong>New project</strong> → kies naam &amp; database-wachtwoord (even noteren)</li>
+              <li>Wacht ~1 min tot project klaar is</li>
+              <li><strong>Project Settings → API</strong> → kopieer <em>Project URL</em> + <em>anon public key</em></li>
+              <li><strong>SQL Editor</strong> → plak de SQL hieronder → Run</li>
+              <li>Vul URL + key + gezamenlijk wachtwoord hieronder in (zelfde wachtwoord op beide toestellen)</li>
+            </ol>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <button onClick={() => setShowSql(s => !s)} style={{
+              fontSize:12, fontWeight:600, color:"var(--accent)",
+              background:"var(--accent-l)", padding:"6px 12px", borderRadius:6
+            }}>{showSql ? "▼" : "▶"} SQL voor de tabel</button>
+            {showSql && (
+              <div style={{ marginTop:8 }}>
+                <pre style={sqlBox}>{sql}</pre>
+                <button onClick={() => navigator.clipboard?.writeText(sql)} style={{
+                  marginTop:6, fontSize:11, fontWeight:600, color:"var(--tx3)",
+                  background:"var(--sf2)", padding:"4px 10px", borderRadius:5, border:"1px solid var(--brd)"
+                }}>📋 Kopieer SQL</button>
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <Btn style={{ flex:1 }} onClick={onClose}>Later</Btn>
+            <Btn primary style={{ flex:2 }} onClick={() => setStep("config")}>Verder →</Btn>
+          </div>
+        </div>
+      )}
+
+      {step === "config" && (
+        <div>
+          <Input label="Project URL" value={url} onChange={e=>setUrl(e.target.value)}
+            placeholder="https://xxxxx.supabase.co" mono />
+          <Input label="Anon public key" value={anon} onChange={e=>setAnon(e.target.value)}
+            placeholder="eyJhbGc..." mono />
+          <Input
+            label={initial ? "Wachtwoord wijzigen (laat leeg om hetzelfde te houden)" : "Gezamenlijk wachtwoord"}
+            type="password" value={pw} onChange={e=>setPw(e.target.value)}
+            placeholder="zelfde op gsm én laptop" />
+          <div style={{ background:"var(--amber-l)", borderRadius:"var(--r-md)", padding:"10px 13px", marginBottom:14, fontSize:11, color:"var(--tx2)", lineHeight:1.55 }}>
+            🔐 <strong>Tip:</strong> kies iets dat alleen jullie kennen, bv. <em>kersenweg-2026</em>. Je partner moet hetzelfde wachtwoord invullen op zijn/haar toestel.
+          </div>
+          {err && (
+            <div style={{ background:"var(--red-l)", color:"var(--red)", padding:"10px 13px", borderRadius:"var(--r-md)", fontSize:12, marginBottom:10, lineHeight:1.5 }}>
+              ⚠️ {err}
+              {errRaw && (
+                <details style={{ marginTop:6 }}>
+                  <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)" }}>Technische details</summary>
+                  <pre style={{ marginTop:6, fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"var(--tx2)", whiteSpace:"pre-wrap", wordBreak:"break-all", maxHeight:120, overflow:"auto", background:"var(--sf2)", padding:"6px 8px", borderRadius:6 }}>{errRaw}</pre>
+                </details>
+              )}
+              <div style={{ marginTop:8, fontSize:11, color:"var(--tx2)", lineHeight:1.5 }}>
+                💡 Weet je zeker dat de tabel bestaat in Supabase? Soms loopt de schema cache achter — je kan de test overslaan en de echte sync proberen.
+                <button onClick={() => save(true)} style={{
+                  display:"block", marginTop:6, fontSize:11, fontWeight:600,
+                  color:"var(--tx)", background:"var(--sf1)",
+                  padding:"5px 10px", borderRadius:5, border:"1px solid var(--brd)"
+                }}>→ Toch opslaan (test overslaan)</button>
+              </div>
+            </div>
+          )}
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            {!initial && <Btn style={{ flex:"1 1 100px" }} onClick={() => setStep("intro")}>← Hulp</Btn>}
+            {initial && onDisable && (
+              <Btn style={{ flex:"1 1 100px", background:"var(--red-l)", color:"var(--red)" }} onClick={onDisable}>Uitschakelen</Btn>
+            )}
+            <Btn primary style={{ flex:"2 1 160px" }} onClick={() => save(false)} disabled={testing}>
+              {testing ? "Testen…" : "Test & opslaan"}
+            </Btn>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════
+   SYNC INDICATOR (header pill)
+════════════════════════════════════════ */
+function SyncIndicator({ status, lastSync, lastEditor, deviceId, onClick }) {
+  const map = {
+    idle:     { c:"var(--tx3)",   bg:"var(--sf2)",      ic:"○",  t:"Sync uit" },
+    disabled: { c:"var(--tx3)",   bg:"var(--sf2)",      ic:"⊘",  t:"Lokaal" },
+    syncing:  { c:"var(--blue)",  bg:"var(--blue-l)",   ic:"↻",  t:"Synct…" },
+    online:   { c:"var(--green)", bg:"var(--green-l)",  ic:"●",  t:"Synced" },
+    offline:  { c:"var(--amber)", bg:"var(--amber-l)",  ic:"◐",  t:"Offline" },
+    error:    { c:"var(--red)",   bg:"var(--red-l)",    ic:"!",  t:"Fout" },
+  };
+  const s = map[status] || map.idle;
+  const tip = lastSync
+    ? `Laatst gesynct: ${lastSync.toLocaleTimeString("nl-BE",{hour:"2-digit",minute:"2-digit"})}${lastEditor && lastEditor !== deviceId ? ` door ${lastEditor}` : ""}`
+    : "Klik om sync in te stellen";
+  return (
+    <button onClick={onClick} title={tip} style={{
+      display:"inline-flex", alignItems:"center", gap:5,
+      padding:"5px 10px", borderRadius:999,
+      background:s.bg, color:s.c, border:"none",
+      fontSize:11, fontWeight:600, cursor:"pointer",
+      whiteSpace:"nowrap"
+    }}>
+      <span style={{ fontSize:10, animation: status==="syncing" ? "pulse 1.2s infinite" : "none" }}>{s.ic}</span>
+      <span className="hide-mobile">{s.t}</span>
+    </button>
+  );
+}
+
+/* ════════════════════════════════════════
+   DASHBOARD TAB
+════════════════════════════════════════ */
+function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
+  const spentByFase = useMemo(() => {
+    const m = {};
+    ALL_FASES.forEach(f => m[f.id] = 0);
+    invoices.forEach(i => { if (m[i.fase] !== undefined) m[i.fase] += (i.bedrag||0) + (i.btw||0); });
+    return m;
+  }, [invoices]);
+
+  const bouwSpent  = MEETSTAAT_BOUW.reduce((s,f) => s + (spentByFase[f.id]||0), 0);
+  const kbkSpent   = spentByFase["KBK"] || 0;
+  const totalSpent = bouwSpent + kbkSpent;
+  const totalEM    = eigenMiddelen.reduce((s,i) => s+i.bedrag, 0);
+  const cashTotal  = eigenMiddelen.filter(i=>i.type==="cash").reduce((s,i)=>s+i.bedrag,0);
+  const savTotal   = eigenMiddelen.filter(i=>i.type==="savings").reduce((s,i)=>s+i.bedrag,0);
+  const loanUsed   = tranchesUsed * TRANCHE_AMOUNT;
+  const loanRem    = LOAN_TOTAL - loanUsed;
+  const overFases  = ALL_FASES.filter(f => spentByFase[f.id] > f.budget);
+
+  return (
+    <div>
+      {/* Budget blocks */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        <Card className="anim-fadeup" style={{ padding:20 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>
+            🏗️ Bouwfases A–Z
+          </div>
+          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
+            {fmt(BOUW_BUDGET)}
+          </div>
+          <div style={{ fontSize:12, color:"var(--tx2)", marginBottom:12, lineHeight:1.4 }}>
+            Besteed {fmt(bouwSpent)}&nbsp;·&nbsp;
+            <span style={{ color: bouwSpent<=BOUW_BUDGET ? "var(--green)" : "var(--red)", fontWeight:600 }}>
+              {fmt(Math.abs(BOUW_BUDGET-bouwSpent))} {bouwSpent>BOUW_BUDGET?"over":"over"}
+            </span>
+          </div>
+          <ProgressBar value={bouwSpent} max={BOUW_BUDGET} height={10} danger />
+          <div style={{ fontSize:10, color:"var(--tx4)", marginTop:6 }}>
+            {pct(bouwSpent,BOUW_BUDGET).toFixed(1)}% · incl. BTW · −25% zelf werken
+          </div>
+        </Card>
+
+        <Card className="anim-fadeup d1" style={{ padding:20 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>
+            🚿 Keuken & badkamer
+          </div>
+          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, fontWeight:700, letterSpacing:"-0.02em", marginBottom:3 }}>
+            {fmt(KBK_BUDGET)}
+          </div>
+          <div style={{ fontSize:12, color:"var(--tx2)", marginBottom:12, lineHeight:1.4 }}>
+            Besteed {fmt(kbkSpent)}&nbsp;·&nbsp;
+            <span style={{ color: kbkSpent<=KBK_BUDGET ? "var(--green)" : "var(--red)", fontWeight:600 }}>
+              {fmt(Math.abs(KBK_BUDGET-kbkSpent))} rest
+            </span>
+          </div>
+          <ProgressBar value={kbkSpent} max={KBK_BUDGET} height={10} color="var(--blue)" danger />
+          <div style={{ fontSize:10, color:"var(--tx4)", marginTop:6 }}>
+            {pct(kbkSpent,KBK_BUDGET).toFixed(1)}% · incl. BTW · geen −25%
+          </div>
+        </Card>
+      </div>
+
+      {/* Total bar */}
+      <Card className="anim-fadeup d2" style={{ padding:"13px 18px", marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+          <span style={{ fontSize:12, color:"var(--tx2)" }}>
+            <strong style={{ color:"var(--tx)" }}>Totaal bouwbudget</strong> — fases + keuken/badkamer = lening
+          </span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:15, color:"var(--accent)" }}>
+            {pct(totalSpent,TOTAL_BUDGET).toFixed(1)}%
+          </span>
+        </div>
+        <ProgressBar value={totalSpent} max={TOTAL_BUDGET} height={8} danger />
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, fontSize:11, color:"var(--tx3)" }}>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(totalSpent)} besteed</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(TOTAL_BUDGET)} totaal</span>
+        </div>
+      </Card>
+
+      {/* Finance cards */}
+      <Card className="anim-fadeup d3" style={{ padding:20, marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Financiering</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+          <div style={{
+            background:"var(--sf2)", borderRadius:"var(--r-lg)",
+            padding:"14px 16px", borderLeft:"3px solid var(--accent)"
+          }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>
+              🏦 Lening
+            </div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:17, fontWeight:700, color:"var(--accent)", lineHeight:1 }}>
+              {fmt(loanUsed)}
+            </div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:4 }}>
+              van {fmt(LOAN_TOTAL)} · schijf {tranchesUsed}/{TRANCHE_COUNT}
+            </div>
+            <div style={{ marginTop:8 }}>
+              <ProgressBar value={loanUsed} max={LOAN_TOTAL} height={4} />
+            </div>
+          </div>
+          <div style={{
+            background:"var(--sf2)", borderRadius:"var(--r-lg)",
+            padding:"14px 16px", borderLeft:"3px solid var(--amber)"
+          }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>
+              💶 Eigen middelen
+            </div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:17, fontWeight:700, color:"var(--amber)", lineHeight:1 }}>
+              {fmt(totalEM)}
+            </div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:4 }}>
+              💵 {fmt(cashTotal)} cash · 🐷 {fmt(savTotal)} spaar
+            </div>
+            <div style={{ marginTop:8 }}>
+              <ProgressBar value={totalEM} max={20000} height={4} color="var(--amber)" />
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <div style={{
+            background:"var(--sf2)", borderRadius:"var(--r-md)",
+            padding:"11px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"
+          }}>
+            <span style={{ fontSize:12, color:"var(--tx3)" }}>🐷 Spaarsaldo</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:14, color:"var(--green)" }}>{fmt(savings)}</span>
+          </div>
+          <div style={{
+            background:"var(--sf2)", borderRadius:"var(--r-md)",
+            padding:"11px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"
+          }}>
+            <span style={{ fontSize:12, color:"var(--tx3)" }}>📊 Totale kost</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:14 }}>{fmt(totalSpent + totalEM)}</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Over-budget alert */}
+      {overFases.length > 0 && (
+        <div className="anim-fadeup" style={{
+          background:"var(--red-l)", borderRadius:"var(--r-lg)",
+          padding:"13px 16px", border:"1px solid rgba(184,73,58,0.2)", marginBottom:12
+        }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"var(--red)", marginBottom:6 }}>⚠️ Over budget</div>
+          {overFases.map(f => (
+            <div key={f.id} style={{ fontSize:12, color:"var(--tx2)", marginBottom:3 }}>
+              <strong>{f.id}</strong> {f.name}: <strong style={{color:"var(--red)"}}>{fmt(spentByFase[f.id]-f.budget)}</strong> over
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Mini fase grid */}
+      <Card className="anim-fadeup d4" style={{ padding:18 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Budget per bouwfase</div>
+        <div style={{
+          display:"grid",
+          gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))",
+          gap:8
+        }}>
+          {MEETSTAAT_BOUW.map(f => {
+            const sp = spentByFase[f.id]||0;
+            const over = sp > f.budget;
+            return (
+              <div key={f.id} style={{
+                padding:"10px 12px", borderRadius:"var(--r-md)",
+                background:"var(--sf2)",
+                border: over ? "1px solid rgba(184,73,58,0.3)" : "1px solid transparent",
+              }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                  <span style={{ fontSize:11, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginRight:6 }}>
+                    <span style={{ color:"var(--accent)", marginRight:4 }}>{f.id}</span>{f.name}
+                  </span>
+                  <span style={{
+                    fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                    color: over ? "var(--red)" : "var(--green)", fontWeight:600, flexShrink:0
+                  }}>{fmtShort(sp)}</span>
+                </div>
+                <ProgressBar value={sp} max={f.budget} height={4} danger />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   MEETSTAAT TAB
+════════════════════════════════════════ */
+function Meetstaat({ invoices, expandedFase, onToggleFase }) {
+  const spentByFase = useMemo(() => {
+    const m = {};
+    ALL_FASES.forEach(f => m[f.id] = 0);
+    invoices.forEach(i => { if (m[i.fase] !== undefined) m[i.fase] += (i.bedrag||0) + (i.btw||0); });
+    return m;
+  }, [invoices]);
+
+  const totalSpent = ALL_FASES.reduce((s,f) => s + (spentByFase[f.id]||0), 0);
+
+  return (
+    <Card className="anim-fadeup" style={{ padding:0 }}>
+      {/* Header row */}
+      <div style={{
+        display:"grid", gridTemplateColumns:"52px 1fr 106px 110px 88px 20px",
+        gap:8, padding:"10px 16px",
+        borderBottom:"1px solid var(--brd)",
+        fontSize:10, fontWeight:700, color:"var(--tx4)",
+        textTransform:"uppercase", letterSpacing:"0.05em"
+      }}>
+        <span>ID</span><span>Fase</span>
+        <span style={{textAlign:"right"}}>Budget</span>
+        <span style={{textAlign:"center"}}>Voortgang</span>
+        <span style={{textAlign:"right"}}>Rest</span>
+        <span></span>
+      </div>
+
+      {ALL_FASES.map((f, idx) => {
+        const sp   = spentByFase[f.id] || 0;
+        const over = sp > f.budget;
+        const rem  = f.budget - sp;
+        const exp  = expandedFase === f.id;
+        const faseInvoices = invoices.filter(i => i.fase === f.id);
+
+        return (
+          <Fragment key={f.id}>
+            <div
+              onClick={() => onToggleFase(f.id)}
+              style={{
+                display:"grid", gridTemplateColumns:"52px 1fr 106px 110px 88px 20px",
+                gap:8, padding:"11px 16px", cursor:"pointer",
+                background: exp ? "var(--sf2)" : "transparent",
+                borderLeft: over ? "3px solid var(--red)" : "3px solid transparent",
+                borderBottom:"1px solid var(--brd)",
+                alignItems:"center",
+                transition:"background 0.12s"
+              }}
+            >
+              <Badge color={f.id==="KBK"?"var(--blue)":"var(--accent)"} bg={f.id==="KBK"?"var(--blue-l)":"var(--accent-l)"}>{f.id}</Badge>
+              <span style={{ fontSize:13, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+              <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"var(--tx3)", textAlign:"right" }}>{fmt(f.budget)}</span>
+              <div style={{ padding:"0 4px" }}><ProgressBar value={sp} max={f.budget} height={6} danger /></div>
+              <span style={{
+                fontSize:11, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+                textAlign:"right", color: over ? "var(--red)" : (sp > 0 ? "var(--green)" : "var(--tx4)")
+              }}>
+                {sp > 0 ? (over ? `+${fmt(Math.abs(rem))}` : fmt(rem)) : fmt(rem)}
+              </span>
+              <span style={{
+                fontSize:10, color:"var(--tx4)",
+                transform: exp ? "rotate(180deg)" : "none",
+                transition:"transform 0.2s", textAlign:"center"
+              }}>▼</span>
+            </div>
+
+            {exp && (
+              <div style={{
+                padding:"8px 16px 12px 70px",
+                borderBottom:"1px solid var(--brd)",
+                background:"var(--bg2)"
+              }}>
+                {faseInvoices.length === 0 ? (
+                  <div style={{ fontSize:12, color:"var(--tx3)", fontStyle:"italic", padding:"4px 0" }}>
+                    Nog geen uitgaven voor deze fase.
+                  </div>
+                ) : (
+                  faseInvoices.map((inv, i, arr) => (
+                    <div key={inv.id} style={{
+                      display:"grid", gridTemplateColumns:"90px 1fr 90px",
+                      gap:8, padding:"6px 0",
+                      borderBottom: i < arr.length-1 ? "1px solid var(--brd)" : "none",
+                      fontSize:12
+                    }}>
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--tx3)" }}>{inv.datum}</span>
+                      <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        <strong style={{ color:"var(--tx)" }}>{inv.leverancier}</strong>
+                        {inv.omschrijving && <span style={{color:"var(--tx3)"}}> — {inv.omschrijving}</span>}
+                      </span>
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right" }}>
+                        {fmt((inv.bedrag||0)+(inv.btw||0))}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </Fragment>
+        );
+      })}
+
+      {/* Total row */}
+      <div style={{
+        display:"grid", gridTemplateColumns:"52px 1fr 106px 110px 88px 20px",
+        gap:8, padding:"12px 16px", borderTop:"2px solid var(--brd2)",
+        alignItems:"center", fontWeight:700, fontSize:13
+      }}>
+        <span></span>
+        <span>Totaal</span>
+        <span style={{ textAlign:"right", fontFamily:"'JetBrains Mono',monospace", fontSize:12, color:"var(--tx3)" }}>{fmt(TOTAL_BUDGET)}</span>
+        <div style={{ padding:"0 4px" }}><ProgressBar value={totalSpent} max={TOTAL_BUDGET} height={6} danger /></div>
+        <span style={{
+          textAlign:"right", fontFamily:"'JetBrains Mono',monospace",
+          color: totalSpent <= TOTAL_BUDGET ? "var(--green)" : "var(--red)", fontSize:12
+        }}>{fmt(TOTAL_BUDGET-totalSpent)}</span>
+        <span></span>
+      </div>
+    </Card>
+  );
+}
+
+/* ════════════════════════════════════════
+   FACTUREN TAB
+════════════════════════════════════════ */
+function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, onEditEM, onDeleteEM, onAddEM }) {
+  const [filters, setFilters] = useState({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"" });
+  const setF = (k,v) => setFilters(p => ({...p,[k]:v}));
+  const hasFilters = Object.values(filters).some(Boolean);
+
+  const filtered = useMemo(() => {
+    return [...invoices].filter(inv => {
+      if (filters.leverancier && !inv.leverancier.toLowerCase().includes(filters.leverancier.toLowerCase())) return false;
+      if (filters.datum && inv.datum !== filters.datum) return false;
+      if (filters.fase && inv.fase !== filters.fase) return false;
+      if (filters.bedragMin && inv.bedrag < parseFloat(filters.bedragMin)) return false;
+      if (filters.bedragMax && inv.bedrag > parseFloat(filters.bedragMax)) return false;
+      return true;
+    }).sort((a,b) => b.datum.localeCompare(a.datum));
+  }, [invoices, filters]);
+
+  const subtotal = filtered.reduce((s,i) => s + (i.bedrag||0) + (i.btw||0), 0);
+  const totalEM  = eigenMiddelen.reduce((s,i) => s+i.bedrag, 0);
+
+  return (
+    <div className="anim-fadeup">
+      {/* Facturen header */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+        <h3 style={{ fontSize:16, fontWeight:700 }}>Facturen bouwbudget</h3>
+        <div style={{ fontSize:12, color:"var(--tx3)" }}>{invoices.length} facturen</div>
+      </div>
+
+      {/* Filters */}
+      <Card style={{ padding:"13px 15px", marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9 }}>
+          <span style={{ fontSize:12, fontWeight:600 }}>🔍 Filter</span>
+          {hasFilters && (
+            <button
+              onClick={() => setFilters({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"" })}
+              style={{
+                fontSize:11, fontWeight:600, color:"var(--red)",
+                background:"var(--red-l)", padding:"3px 10px",
+                borderRadius:6, cursor:"pointer"
+              }}
+            >✕ Wis filters</button>
+          )}
+          {hasFilters && <span style={{fontSize:11,color:"var(--tx3)"}}>{filtered.length}/{invoices.length}</span>}
+        </div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <input
+            placeholder="Leverancier…"
+            value={filters.leverancier}
+            onChange={e => setF("leverancier", e.target.value)}
+            style={{
+              flex:"1 1 130px", padding:"8px 11px", borderRadius:"var(--r-sm)",
+              border:"1px solid var(--brd)", background:"var(--sf2)",
+              color:"var(--tx)", fontSize:12, outline:"none"
+            }}
+          />
+          <input type="date" value={filters.datum} onChange={e => setF("datum", e.target.value)}
+            style={{
+              flex:"0 0 135px", padding:"8px 11px", borderRadius:"var(--r-sm)",
+              border:"1px solid var(--brd)", background:"var(--sf2)",
+              color: filters.datum ? "var(--tx)" : "var(--tx3)", fontSize:12, outline:"none"
+            }}
+          />
+          <select value={filters.fase} onChange={e => setF("fase", e.target.value)}
+            style={{
+              flex:"0 0 160px", padding:"8px 11px", borderRadius:"var(--r-sm)",
+              border:"1px solid var(--brd)", background:"var(--sf2)",
+              color: filters.fase ? "var(--tx)" : "var(--tx3)", fontSize:12, outline:"none"
+            }}
+          >
+            <option value="">Alle fases</option>
+            {ALL_FASES.map(f => <option key={f.id} value={f.id}>{f.id} — {f.name}</option>)}
+          </select>
+          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            <input type="number" placeholder="Min €" value={filters.bedragMin}
+              onChange={e => setF("bedragMin", e.target.value)}
+              style={{ width:72, padding:"8px 8px", borderRadius:"var(--r-sm)", border:"1px solid var(--brd)", background:"var(--sf2)", color:"var(--tx)", fontSize:12, outline:"none" }}
+            />
+            <span style={{ fontSize:10, color:"var(--tx3)" }}>–</span>
+            <input type="number" placeholder="Max €" value={filters.bedragMax}
+              onChange={e => setF("bedragMax", e.target.value)}
+              style={{ width:72, padding:"8px 8px", borderRadius:"var(--r-sm)", border:"1px solid var(--brd)", background:"var(--sf2)", color:"var(--tx)", fontSize:12, outline:"none" }}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Invoice list */}
+      <Card style={{ padding:0, marginBottom:26 }}>
+        {/* Column header */}
+        <div style={{
+          display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
+          gap:6, padding:"9px 14px",
+          fontSize:10, fontWeight:700, color:"var(--tx4)",
+          textTransform:"uppercase", letterSpacing:"0.05em",
+          borderBottom:"1px solid var(--brd)"
+        }}>
+          <span>Datum</span>
+          <span>Leverancier</span>
+          <span className="hide-mobile">Omschrijving</span>
+          <span className="hide-mobile">Fase</span>
+          <span style={{textAlign:"right"}}>Bedrag</span>
+          <span></span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div style={{ padding:"24px 16px", textAlign:"center", fontSize:13, color:"var(--tx3)", fontStyle:"italic" }}>
+            {invoices.length === 0 ? "Nog geen facturen. Upload een factuur of voeg er manueel één toe." : "Geen resultaten voor deze filters."}
+          </div>
+        ) : (
+          filtered.map((inv, idx) => (
+            <div key={inv.id} style={{
+              display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
+              gap:6, padding:"10px 14px", fontSize:13, alignItems:"center",
+              borderBottom:"1px solid var(--brd)",
+              background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)"
+            }}>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{inv.datum}</span>
+              <div style={{ overflow:"hidden" }}>
+                <div style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inv.leverancier}</div>
+              </div>
+              <div className="hide-mobile" style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:12, color:"var(--tx3)" }}>
+                {inv.omschrijving}
+              </div>
+              <div className="hide-mobile"><Badge>{inv.fase}</Badge></div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, fontSize:13 }}>
+                  {fmt((inv.bedrag||0)+(inv.btw||0))}
+                </div>
+                <div style={{ fontSize:9, color:"var(--tx4)", fontFamily:"'JetBrains Mono',monospace" }}>
+                  {fmt(inv.bedrag||0)}+{fmt(inv.btw||0)}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
+                <button onClick={() => onEditInvoice(inv)} style={{ padding:"3px 5px", fontSize:13, borderRadius:5, background:"transparent" }}>✏️</button>
+                <button onClick={() => onDeleteInvoice(inv.id)} style={{ padding:"3px 5px", fontSize:13, borderRadius:5, background:"transparent" }}>🗑️</button>
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Subtotal row */}
+        {invoices.length > 0 && (
+          <div style={{
+            display:"flex", justifyContent:"space-between", alignItems:"center",
+            padding:"11px 14px", borderTop:"2px solid var(--brd2)",
+            fontSize:13, fontWeight:700
+          }}>
+            <span>{hasFilters ? `Subtotaal (${filtered.length} facturen)` : `Totaal (${invoices.length} facturen)`}</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--accent)", fontSize:14 }}>
+              {fmt(subtotal)}
+            </span>
+          </div>
+        )}
+      </Card>
+
+      {/* Eigen middelen */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+        <div>
+          <h3 style={{ fontSize:16, fontWeight:700 }}>Eigen middelen</h3>
+          <div style={{ fontSize:11, color:"var(--tx3)", marginTop:2 }}>Buiten bouwbudget — cash &amp; spaargeld</div>
+        </div>
+        <Btn small onClick={onAddEM}>+ Toevoegen</Btn>
+      </div>
+
+      <Card style={{ padding:0 }}>
+        <div style={{
+          display:"grid", gridTemplateColumns:"86px 1fr 1fr 80px 70px 50px",
+          gap:6, padding:"9px 14px",
+          fontSize:10, fontWeight:700, color:"var(--tx4)",
+          textTransform:"uppercase", letterSpacing:"0.05em",
+          borderBottom:"1px solid var(--brd)"
+        }}>
+          <span>Datum</span><span>Aan wie</span>
+          <span className="hide-mobile">Omschrijving</span>
+          <span style={{textAlign:"right"}}>Bedrag</span>
+          <span style={{textAlign:"center"}}>Type</span>
+          <span></span>
+        </div>
+
+        {[...eigenMiddelen].sort((a,b) => b.datum.localeCompare(a.datum)).map((em, idx) => (
+          <div key={em.id} style={{
+            display:"grid", gridTemplateColumns:"86px 1fr 1fr 80px 70px 50px",
+            gap:6, padding:"10px 14px", fontSize:13, alignItems:"center",
+            borderBottom:"1px solid var(--brd)",
+            background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)"
+          }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{em.datum}</span>
+            <span style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{em.leverancier}</span>
+            <span className="hide-mobile" style={{ fontSize:12, color:"var(--tx3)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{em.omschrijving}</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right" }}>{fmt(em.bedrag)}</span>
+            <div style={{ display:"flex", justifyContent:"center" }}>
+              <Badge
+                color={em.type==="cash" ? "var(--amber)" : "var(--blue)"}
+                bg={em.type==="cash" ? "var(--amber-l)" : "var(--blue-l)"}
+              >{em.type==="cash" ? "CASH" : "SPAAR"}</Badge>
+            </div>
+            <div style={{ display:"flex", gap:2, justifyContent:"flex-end" }}>
+              <button onClick={() => onEditEM(em)} style={{ padding:"3px 5px", fontSize:13 }}>✏️</button>
+              <button onClick={() => onDeleteEM(em.id)} style={{ padding:"3px 5px", fontSize:13 }}>🗑️</button>
+            </div>
+          </div>
+        ))}
+
+        <div style={{
+          display:"flex", justifyContent:"space-between", alignItems:"center",
+          padding:"11px 14px", borderTop:"2px solid var(--brd2)",
+          fontSize:13, fontWeight:700
+        }}>
+          <span>Totaal eigen middelen</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--amber)", fontSize:14 }}>{fmt(totalEM)}</span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   LENING TAB
+════════════════════════════════════════ */
+function LeningTab({ tranchesUsed, onSetTranches, savings, onSetSavings, eigenMiddelen, invoices }) {
+  const loanUsed    = tranchesUsed * TRANCHE_AMOUNT;
+  const loanRem     = LOAN_TOTAL - loanUsed;
+  const totalEM     = eigenMiddelen.reduce((s,i)=>s+i.bedrag,0);
+  const totalSpent  = invoices.reduce((s,i)=>s+(i.bedrag||0)+(i.btw||0), 0);
+  const balance     = loanUsed - totalSpent;   // positief = meer opgenomen dan besteed, negatief = meer besteed dan opgenomen
+  const [savEdit, setSavEdit] = useState(String(savings));
+
+  const handleSavBlur = () => {
+    const v = parseFloat(savEdit);
+    if (!isNaN(v)) onSetSavings(v);
+    else setSavEdit(String(savings));
+  };
+
+  return (
+    <div>
+      {/* Stat cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))", gap:10, marginBottom:14 }}>
+        <div className="anim-fadeup">
+          <Stat icon="🏦" label="Totale lening" value={fmt(LOAN_TOTAL)} sub={`${TRANCHE_COUNT} schijven van ${fmt(TRANCHE_AMOUNT)}`} accent="var(--accent)" />
+        </div>
+        <div className="anim-fadeup d1">
+          <Stat icon="📤" label="Opgenomen" value={fmt(loanUsed)} sub={`${tranchesUsed} schijven`} accent="var(--accent)" />
+        </div>
+        <div className="anim-fadeup d2">
+          <Stat icon="💰" label="Beschikbaar" value={fmt(loanRem)} sub={`${TRANCHE_COUNT-tranchesUsed} schijven resterend`} accent="var(--green)" />
+        </div>
+        <div className="anim-fadeup d3">
+          <Stat icon="💶" label="Eigen middelen" value={fmt(totalEM)} sub="Buiten bouwbudget" accent="var(--amber)" />
+        </div>
+      </div>
+
+      {/* Opgenomen vs. besteed */}
+      <Card className="anim-fadeup d1" style={{ padding:20, marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Opgenomen vs. besteed</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:14 }}>
+          <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"13px 14px" }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Opgenomen</div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color:"var(--accent)" }}>{fmt(loanUsed)}</div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>{tranchesUsed} schijven</div>
+          </div>
+          <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"13px 14px" }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Besteed</div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color:"var(--tx)" }}>{fmt(totalSpent)}</div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>{invoices.length} facturen</div>
+          </div>
+          <div style={{
+            background: balance >= 0 ? "var(--green-l)" : "var(--red-l)",
+            borderRadius:"var(--r-md)", padding:"13px 14px",
+            border: `1px solid ${balance >= 0 ? "rgba(78,126,82,0.2)" : "rgba(184,73,58,0.2)"}`
+          }}>
+            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>
+              {balance >= 0 ? "Nog beschikbaar" : "Tekort"}
+            </div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color: balance >= 0 ? "var(--green)" : "var(--red)" }}>
+              {fmt(Math.abs(balance))}
+            </div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>
+              {balance >= 0 ? "van opgenomen schijven" : "meer uitgegeven dan opgenomen"}
+            </div>
+          </div>
+        </div>
+
+        {/* Dubbele balk: opgenomen vs besteed */}
+        <div style={{ marginBottom:6 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--tx3)", marginBottom:4 }}>
+            <span>Besteed van opgenomen schijven</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, color: totalSpent > loanUsed ? "var(--red)" : "var(--tx2)" }}>
+              {loanUsed > 0 ? `${Math.min((totalSpent/loanUsed*100),999).toFixed(1)}%` : "—"}
+            </span>
+          </div>
+          {/* Track: opgenomen */}
+          <div style={{ position:"relative", height:14, borderRadius:7, background:"var(--accent-l)", overflow:"hidden" }}>
+            {/* Besteed */}
+            <div style={{
+              position:"absolute", left:0, top:0, height:"100%",
+              width:`${clamp(loanUsed > 0 ? (totalSpent/loanUsed)*100 : 0, 0, 100)}%`,
+              background: totalSpent > loanUsed ? "var(--red)" : "var(--green)",
+              borderRadius:7,
+              transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)"
+            }} />
+          </div>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--tx4)", marginTop:4 }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>Besteed: {fmt(totalSpent)}</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>Opgenomen: {fmt(loanUsed)}</span>
+          </div>
+        </div>
+
+        {/* Lening totaal voortgang */}
+        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid var(--brd)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--tx3)", marginBottom:4 }}>
+            <span>Opgenomen van totale lening</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{pct(loanUsed, LOAN_TOTAL).toFixed(1)}%</span>
+          </div>
+          <ProgressBar value={loanUsed} max={LOAN_TOTAL} height={8} />
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--tx4)", marginTop:4 }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(loanUsed)} opgenomen</span>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(LOAN_TOTAL)} totaal</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Schijven */}
+      <Card className="anim-fadeup d3" style={{ padding:18, marginBottom:12 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Schijven klikken</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+          {Array.from({ length:TRANCHE_COUNT }, (_,i) => {
+            const active = i < tranchesUsed;
+            return (
+              <button
+                key={i}
+                onClick={() => onSetTranches(i+1 === tranchesUsed ? i : i+1)}
+                style={{
+                  width:50, height:50, borderRadius:"var(--r-md)",
+                  fontSize:15, fontWeight:700, cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  border: active ? "2px solid var(--accent)" : "2px solid var(--brd)",
+                  background: active ? "var(--accent-l)" : "var(--sf2)",
+                  color: active ? "var(--accent)" : "var(--tx4)",
+                  transition:"all 0.2s",
+                  boxShadow: active ? "0 2px 6px rgba(168,113,74,0.2)" : "none"
+                }}
+              >{i+1}</button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize:12, color:"var(--tx3)" }}>
+          Klik op een schijf om het aantal opgenomen schijven bij te werken.
+        </div>
+      </Card>
+
+      {/* Spaarsaldo */}
+      <Card className="anim-fadeup d4" style={{ padding:18 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:12 }}>Spaarsaldo</div>
+        <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:10 }}>
+          <input
+            type="number"
+            value={savEdit}
+            onChange={e => setSavEdit(e.target.value)}
+            onBlur={handleSavBlur}
+            onKeyDown={e => e.key==="Enter" && handleSavBlur()}
+            style={{
+              width:180, padding:"10px 13px", borderRadius:"var(--r-md)",
+              border:"1px solid var(--brd)", background:"var(--sf2)",
+              color:"var(--tx)", fontSize:16, fontWeight:700,
+              fontFamily:"'JetBrains Mono',monospace", outline:"none"
+            }}
+          />
+          <div>
+            <div style={{ fontSize:12, color:"var(--tx2)", fontWeight:500 }}>Huidig spaarsaldo</div>
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:2 }}>Druk Enter of klik erbuiten om op te slaan</div>
+          </div>
+        </div>
+        <div style={{
+          background:"var(--green-l)", borderRadius:"var(--r-md)",
+          padding:"10px 13px", fontSize:12, color:"var(--tx2)", lineHeight:1.5
+        }}>
+          ℹ️ Het spaarsaldo staat los van het bouwbudget. De formule voor automatische berekening is nog in ontwikkeling.
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   INSTELLINGEN TAB
+════════════════════════════════════════ */
+function InstellingenTab({ apiKey, onApiKeyChange, onReset, syncEnabled, syncStatus, lastSync, lastEditor, deviceId, onConfigureSync }) {
+  const [keyVisible, setKeyVisible] = useState(false);
+  const [localKey, setLocalKey] = useState(apiKey);
+
+  const syncMap = {
+    idle:     { c:"var(--tx3)",   bg:"var(--sf2)",     t:"Sync uit", desc:"Klik 'Configureren' om in te stellen." },
+    disabled: { c:"var(--tx3)",   bg:"var(--sf2)",     t:"Lokaal alleen", desc:"Data blijft op dit toestel. Stel cloud-sync in om te delen." },
+    syncing:  { c:"var(--blue)",  bg:"var(--blue-l)",  t:"Bezig met synchroniseren\u2026", desc:"Wijzigingen worden naar de cloud gestuurd." },
+    online:   { c:"var(--green)", bg:"var(--green-l)", t:"\u2705 Online \u2014 alles in sync", desc:"Wijzigingen verschijnen automatisch op gsm en laptop." },
+    offline:  { c:"var(--amber)", bg:"var(--amber-l)", t:"Offline", desc:"Wijzigingen worden opgeslagen en gepusht zodra er internet is." },
+    error:    { c:"var(--red)",   bg:"var(--red-l)",   t:"Verbindingsfout", desc:"Klik 'Configureren' om URL en sleutel te controleren." },
+  };
+  const ss = syncMap[syncStatus] || syncMap.idle;
+
+  return (
+    <div className="anim-fadeup">
+      {/* Cloud sync */}
+      <Card style={{ padding:22, marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, gap:10, flexWrap:"wrap" }}>
+          <div style={{ fontSize:15, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:18 }}>☁️</span> Cloud-sync
+          </div>
+          <Btn small primary={!syncEnabled} onClick={onConfigureSync}>
+            {syncEnabled ? "⚙️ Beheren" : "🔧 Configureren"}
+          </Btn>
+        </div>
+        <div style={{
+          background:ss.bg, borderRadius:"var(--r-md)",
+          padding:"12px 14px", marginBottom:12
+        }}>
+          <div style={{ fontSize:13, fontWeight:700, color:ss.c, marginBottom:4 }}>{ss.t}</div>
+          <div style={{ fontSize:12, color:"var(--tx2)", lineHeight:1.5 }}>{ss.desc}</div>
+          {lastSync && (
+            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:6, fontFamily:"'JetBrains Mono',monospace" }}>
+              Laatst: {lastSync.toLocaleString("nl-BE", { dateStyle:"short", timeStyle:"short" })}
+              {lastEditor && lastEditor !== deviceId && <> · door <strong>{lastEditor}</strong></>}
+            </div>
+          )}
+          <div style={{ fontSize:11, color:"var(--tx3)", marginTop:4 }}>
+            Dit toestel: <code style={{fontFamily:"'JetBrains Mono',monospace"}}>{deviceId}</code>
+          </div>
+        </div>
+        <p style={{ fontSize:12, color:"var(--tx2)", lineHeight:1.6, margin:0 }}>
+          Cloud-sync gebruikt <a href="https://supabase.com" target="_blank" rel="noopener" style={{color:"var(--accent)"}}>Supabase</a> (gratis tier).
+          Jij en je partner gebruiken hetzelfde wachtwoord en zien dezelfde data op gsm én laptop.
+          Werkt offline-first: wijzigingen worden lokaal opgeslagen en gesynct zodra er internet is.
+        </p>
+      </Card>
+
+      {/* PWA installatie */}
+      <Card style={{ padding:22, marginBottom:14 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:18 }}>📱</span> Installeren als app
+        </div>
+        <p style={{ fontSize:12, color:"var(--tx2)", lineHeight:1.7, margin:0 }}>
+          <strong>iPhone (Safari):</strong> tik op het deelicoon onderaan → <em>"Voeg toe aan beginscherm"</em>.<br/>
+          <strong>Android (Chrome):</strong> tik op de drie puntjes rechtsboven → <em>"App installeren"</em> of <em>"Toevoegen aan startscherm"</em>.<br/>
+          <strong>Laptop (Chrome/Edge):</strong> klik op het installatie-icoon (⊕) in de adresbalk.<br/>
+          <br/>
+          Daarna opent Ons Huisje als een echte app, zonder browser-balk, en blijft beschikbaar offline.
+        </p>
+      </Card>
+
+      {/* API Key */}
+      <Card style={{ padding:22, marginBottom:14 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:6 }}>🔑 Anthropic API-sleutel</div>
+        <p style={{ fontSize:12, color:"var(--tx2)", lineHeight:1.7, marginBottom:14 }}>
+          Nodig voor de AI-factuurscan. Maak een account aan op{" "}
+          <a href="https://console.anthropic.com" target="_blank" rel="noopener" style={{color:"var(--accent)"}}>console.anthropic.com</a>,
+          laad krediet op (min. $5), en plak je sleutel hieronder.
+          De sleutel wordt alleen lokaal in je browser opgeslagen.
+        </p>
+        <div style={{ position:"relative" }}>
+          <input
+            type={keyVisible ? "text" : "password"}
+            placeholder="sk-ant-..."
+            value={localKey}
+            onChange={e => { setLocalKey(e.target.value); onApiKeyChange(e.target.value.trim()); }}
+            style={{
+              width:"100%", padding:"10px 42px 10px 13px",
+              borderRadius:"var(--r-md)", border:"1px solid var(--brd)",
+              background:"var(--sf2)", color:"var(--tx)", fontSize:13,
+              fontFamily:"'JetBrains Mono',monospace", outline:"none"
+            }}
+          />
+          <button
+            onClick={() => setKeyVisible(p => !p)}
+            style={{
+              position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+              fontSize:14, color:"var(--tx3)", background:"none", border:"none"
+            }}
+          >{keyVisible ? "🙈" : "👁"}</button>
+        </div>
+        <div style={{ marginTop:10, fontSize:12 }}>
+          {localKey ? (
+            <span style={{ color:"var(--green)", fontWeight:600 }}>✅ API-sleutel ingesteld — factuurscan is actief</span>
+          ) : (
+            <span style={{ color:"var(--amber)", fontWeight:600 }}>⚠️ Geen sleutel — manueel invoeren werkt wel</span>
+          )}
+        </div>
+      </Card>
+
+      {/* About */}
+      <Card style={{ padding:22, marginBottom:14 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:12 }}>Over Ons Huisje</div>
+        <div style={{ fontSize:13, color:"var(--tx2)", lineHeight:1.8 }}>
+          <strong style={{color:"var(--tx)"}}>Bouwbudget ({fmt(TOTAL_BUDGET)}):</strong><br />
+          · Bouwfases A–Z: {fmt(BOUW_BUDGET)} — meetstaat × BTW 21% × −25% zelf werken<br />
+          · Keuken &amp; badkamer: {fmt(KBK_BUDGET)} — geen korting<br />
+          <br />
+          <strong style={{color:"var(--tx)"}}>Eigen middelen</strong> staan volledig buiten het bouwbudget. Ze tellen niet mee in de voortgang of lening.<br />
+          <br />
+          <strong style={{color:"var(--tx)"}}>AI-scan:</strong> upload een PDF of foto van een factuur — Claude leest leverancier, bedrag, BTW, datum en stelt een fase voor.<br />
+          <br />
+          <strong style={{color:"var(--tx)"}}>Data:</strong> wordt lokaal in je browser opgeslagen (localStorage) en optioneel via cloud-sync gedeeld tussen gsm en laptop.
+        </div>
+      </Card>
+
+      {/* Budget details */}
+      <Card style={{ padding:22, marginBottom:14 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:12 }}>Budgetopbouw per fase</div>
+        <div style={{ overflow:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead>
+              <tr style={{ borderBottom:"2px solid var(--brd)", color:"var(--tx3)" }}>
+                <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600 }}>ID</th>
+                <th style={{ textAlign:"left", padding:"6px 8px", fontWeight:600 }}>Fase</th>
+                <th style={{ textAlign:"right", padding:"6px 8px", fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>Budget</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MEETSTAAT_BOUW.map(f => (
+                <tr key={f.id} style={{ borderBottom:"1px solid var(--brd)" }}>
+                  <td style={{ padding:"6px 8px" }}><Badge>{f.id}</Badge></td>
+                  <td style={{ padding:"6px 8px", color:"var(--tx2)" }}>{f.name}</td>
+                  <td style={{ padding:"6px 8px", textAlign:"right", fontFamily:"'JetBrains Mono',monospace", fontWeight:500 }}>{fmt(f.budget)}</td>
+                </tr>
+              ))}
+              <tr style={{ borderBottom:"1px solid var(--brd)" }}>
+                <td style={{ padding:"6px 8px" }}><Badge color="var(--blue)" bg="var(--blue-l)">KBK</Badge></td>
+                <td style={{ padding:"6px 8px", color:"var(--tx2)" }}>Keuken &amp; badkamer</td>
+                <td style={{ padding:"6px 8px", textAlign:"right", fontFamily:"'JetBrains Mono',monospace", fontWeight:500 }}>{fmt(KBK_BUDGET)}</td>
+              </tr>
+              <tr style={{ fontWeight:700 }}>
+                <td colSpan={2} style={{ padding:"8px 8px", borderTop:"2px solid var(--brd2)" }}>Totaal</td>
+                <td style={{ padding:"8px 8px", textAlign:"right", fontFamily:"'JetBrains Mono',monospace", borderTop:"2px solid var(--brd2)", color:"var(--accent)" }}>{fmt(TOTAL_BUDGET)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Btn
+        onClick={onReset}
+        style={{ background:"var(--red-l)", color:"var(--red)", border:"1px solid rgba(184,73,58,0.25)" }}
+      >🗑️ Alle data resetten</Btn>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
+   MAIN APP
+════════════════════════════════════════ */
+function App() {
+  const [loaded,        setLoaded]        = useState(false);
+  const [invoices,      setInvoices]      = useState(INITIAL_INVOICES_DATA);
+  const [eigenMiddelen, setEigenMiddelen] = useState(INITIAL_EIGEN_MIDDELEN);
+  const [savings,       setSavings]       = useState(7100);
+  const [tranchesUsed,  setTranchesUsed]  = useState(0);
+  const [apiKey,        setApiKey]        = useState("");
+  const [activeTab,     setActiveTab]     = useState("dashboard");
+  const [expandedFase,  setExpandedFase]  = useState(null);
+
+  // Modals
+  const [modal, setModal] = useState(null);
+  // modal: { type: "invoice"|"eigen"|"duplicate"|"loading" }
+  // + data
+
+  const fileRef = useRef(null);
+
+  /* ── Storage ── */
+  useEffect(() => {
+    const s = loadState();
+    if (s) {
+      // Opgeslagen data overschrijft startdata — maar alleen als er ook echt facturen in zitten
+      // (om te voorkomen dat een lege oude save de nieuwe startdata weggooit)
+      if (s.invoices && s.invoices.length > 0) setInvoices(s.invoices);
+      if (s.eigenMiddelen && s.eigenMiddelen.length > 0) setEigenMiddelen(s.eigenMiddelen);
+      if (s.savings != null) setSavings(s.savings);
+      if (s.tranchesUsed != null) setTranchesUsed(s.tranchesUsed);
+      if (s.apiKey) setApiKey(s.apiKey);
+    }
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    saveState({ invoices, eigenMiddelen, savings, tranchesUsed, apiKey });
+  }, [invoices, eigenMiddelen, savings, tranchesUsed, apiKey, loaded]);
+
+  /* ── Cloud sync (Supabase) ──
+     Bundel alle gedeelde state in één payload. apiKey blijft LOKAAL
+     (komt niet in de cloud — elk toestel z'n eigen sleutel). */
+  const [syncEnabled, setSyncEnabled] = useState(() => !!OnsHuisjeSync.loadSyncConfig());
+  const [showSyncSetup, setShowSyncSetup] = useState(false);
+
+  const syncPayload = useMemo(() => ({
+    invoices, eigenMiddelen, savings, tranchesUsed
+  }), [invoices, eigenMiddelen, savings, tranchesUsed]);
+
+  const handleSyncPull = useCallback((data) => {
+    if (!data) return;
+    if (Array.isArray(data.invoices))      setInvoices(data.invoices);
+    if (Array.isArray(data.eigenMiddelen)) setEigenMiddelen(data.eigenMiddelen);
+    if (typeof data.savings === "number")      setSavings(data.savings);
+    if (typeof data.tranchesUsed === "number") setTranchesUsed(data.tranchesUsed);
+  }, []);
+
+  const sync = OnsHuisjeSync.useSync({
+    payload: syncPayload,
+    onPull:  handleSyncPull,
+    enabled: syncEnabled,
+    loaded
+  });
+
+  const onSyncSaved = useCallback(() => {
+    setSyncEnabled(true);
+    setShowSyncSetup(false);
+  }, []);
+  const onSyncDisable = useCallback(() => {
+    OnsHuisjeSync.saveSyncConfig(null);
+    setSyncEnabled(false);
+    setShowSyncSetup(false);
+  }, []);
+
+  /* ── Invoice helpers ── */
+  const checkDuplicate = useCallback((inv) => {
+    return invoices.find(ex =>
+      ex.id !== inv.id &&
+      ex.leverancier.toLowerCase() === inv.leverancier.toLowerCase() &&
+      Math.abs((ex.bedrag||0) - (inv.bedrag||0)) < 0.01 &&
+      ex.datum === inv.datum
+    );
+  }, [invoices]);
+
+  const saveInvoice = useCallback((inv, force=false) => {
+    if (!force) {
+      const dup = checkDuplicate(inv);
+      if (dup) {
+        setModal({ type:"duplicate", newInvoice:inv, existing:dup });
+        return;
+      }
+    }
+    setInvoices(prev => {
+      const idx = prev.findIndex(i => i.id === inv.id);
+      return idx >= 0 ? prev.map(i => i.id===inv.id ? inv : i) : [...prev, inv];
+    });
+    setModal(null);
+  }, [checkDuplicate]);
+
+  const deleteInvoice = useCallback((id) => {
+    if (confirm("Factuur verwijderen?")) setInvoices(prev => prev.filter(i => i.id !== id));
+  }, []);
+
+  /* ── Eigen Middelen helpers ── */
+  const saveEM = useCallback((item) => {
+    setEigenMiddelen(prev => {
+      const idx = prev.findIndex(i => i.id===item.id);
+      return idx >= 0 ? prev.map(i => i.id===item.id ? item : i) : [...prev, item];
+    });
+    setModal(null);
+  }, []);
+
+  const deleteEM = useCallback((id) => {
+    if (confirm("Eigen middel verwijderen?")) setEigenMiddelen(prev => prev.filter(i => i.id!==id));
+  }, []);
+
+  /* ── File upload / AI ── */
+  const handleFileUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (!apiKey) {
+      setModal({ type:"invoice", invoice:{ id:uid(), leverancier:"", bedrag:0, btw:0,
+        datum:new Date().toISOString().slice(0,10), fase:ALL_FASES[0].id, omschrijving:"" } });
+      return;
+    }
+
+    setModal({ type:"loading" });
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const b64 = ev.target.result.split(",")[1];
+      const result = await readInvoiceWithAI(b64, file.name, apiKey);
+      setModal({
+        type:"invoice",
+        invoice: {
+          id: uid(),
+          leverancier: result?.leverancier || "",
+          bedrag: result?.bedrag || 0,
+          btw: result?.btw || 0,
+          datum: result?.datum || new Date().toISOString().slice(0,10),
+          fase: result?.fase || ALL_FASES[0].id,
+          omschrijving: result?.omschrijving || "",
+          aiSuggested: !!result
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  }, [apiKey]);
+
+  const resetAll = useCallback(() => {
+    if (!confirm("Weet je zeker dat je alle facturen en instellingen wilt resetten?")) return;
+    setInvoices([]);
+    setEigenMiddelen(INITIAL_EIGEN_MIDDELEN);
+    setSavings(SAVINGS_INITIAL);
+    setTranchesUsed(0);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
+  /* ── Loading screen ── */
+  if (!loaded) return (
+    <div style={{
+      display:"flex", alignItems:"center", justifyContent:"center",
+      minHeight:"100vh", background:"var(--bg)"
+    }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontSize:56, marginBottom:16, animation:"pulse 2s infinite" }}>🏠</div>
+        <div style={{ fontSize:20, fontWeight:700, fontFamily:"'Outfit',sans-serif" }}>Ons Huisje</div>
+        <div style={{ fontSize:13, color:"var(--tx3)", marginTop:4 }}>laden…</div>
+      </div>
+    </div>
+  );
+
+  const TABS = [
+    { id:"dashboard", label:"Overzicht",   icon:"📊" },
+    { id:"fases",     label:"Meetstaat",   icon:"📋" },
+    { id:"invoices",  label:"Facturen",    icon:"🧾" },
+    { id:"lening",    label:"Lening",      icon:"🏦" },
+    { id:"settings",  label:"Instellingen",icon:"⚙️"  },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:"var(--bg)" }}>
+      {/* ── HEADER ── */}
+      <header style={{
+        position:"sticky", top:0, zIndex:50,
+        background:"rgba(244,238,230,0.88)",
+        backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
+        borderBottom:"1px solid var(--brd)",
+      }}>
+        <div style={{
+          maxWidth:940, margin:"0 auto",
+          padding:"13px 20px",
+          display:"flex", alignItems:"center", justifyContent:"space-between", gap:12
+        }}>
+          <div>
+            <h1 style={{
+              fontSize:19, fontWeight:800, letterSpacing:"-0.02em",
+              display:"flex", alignItems:"center", gap:9
+            }}>
+              <span style={{fontSize:22}}>👨‍👩‍👧</span>Ons Huisje
+            </h1>
+            <p style={{ fontSize:11, color:"var(--tx3)", marginTop:1 }}>
+              Piras — Venken · Kersenweg 3, Dilsen-Stokkem
+            </p>
+          </div>
+          <div style={{ display:"flex", gap:7, alignItems:"center" }}>
+            <SyncIndicator
+              status={sync.syncStatus}
+              lastSync={sync.lastSync}
+              lastEditor={sync.lastEditor}
+              deviceId={sync.deviceId}
+              onClick={() => setShowSyncSetup(true)}
+            />
+            <Btn small onClick={() => setModal({
+              type:"invoice",
+              invoice:{ id:uid(), leverancier:"", bedrag:0, btw:0,
+                datum:new Date().toISOString().slice(0,10), fase:ALL_FASES[0].id, omschrijving:"" }
+            })}>✏️ Manueel</Btn>
+            <Btn small primary onClick={() => fileRef.current?.click()}>📄 Factuur</Btn>
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg"
+              style={{ display:"none" }} onChange={handleFileUpload} />
+          </div>
+        </div>
+      </header>
+
+      {/* ── NAV ── */}
+      <nav style={{
+        maxWidth:940, margin:"0 auto",
+        padding:"8px 20px",
+        display:"flex", gap:3,
+        overflowX:"auto", WebkitOverflowScrolling:"touch"
+      }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+            padding:"7px 14px", borderRadius:"var(--r-sm)",
+            fontSize:13, fontWeight: activeTab===t.id ? 600 : 400,
+            background: activeTab===t.id ? "var(--accent-l)" : "transparent",
+            color: activeTab===t.id ? "var(--accent)" : "var(--tx3)",
+            whiteSpace:"nowrap", transition:"all 0.12s",
+            display:"flex", alignItems:"center", gap:5,
+            border:"none", cursor:"pointer"
+          }}>
+            <span>{t.icon}</span><span className="hide-mobile">{t.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* ── MAIN ── */}
+      <main style={{ maxWidth:940, margin:"0 auto", padding:"14px 20px 80px" }}>
+        {activeTab === "dashboard" && (
+          <DashboardTab
+            invoices={invoices}
+            eigenMiddelen={eigenMiddelen}
+            savings={savings}
+            tranchesUsed={tranchesUsed}
+          />
+        )}
+        {activeTab === "fases" && (
+          <Meetstaat
+            invoices={invoices}
+            expandedFase={expandedFase}
+            onToggleFase={id => setExpandedFase(p => p===id ? null : id)}
+          />
+        )}
+        {activeTab === "invoices" && (
+          <FacturenTab
+            invoices={invoices}
+            eigenMiddelen={eigenMiddelen}
+            onEditInvoice={inv => setModal({ type:"invoice", invoice:inv, isEditing:true })}
+            onDeleteInvoice={deleteInvoice}
+            onEditEM={em => setModal({ type:"eigen", item:{ ...em, _existing:true } })}
+            onDeleteEM={deleteEM}
+            onAddEM={() => setModal({ type:"eigen", item:{ id:uid(), leverancier:"", bedrag:0, btw:0, datum:new Date().toISOString().slice(0,10), omschrijving:"", type:"cash" } })}
+          />
+        )}
+        {activeTab === "lening" && (
+          <LeningTab
+            invoices={invoices}
+            tranchesUsed={tranchesUsed}
+            onSetTranches={setTranchesUsed}
+            savings={savings}
+            onSetSavings={setSavings}
+            eigenMiddelen={eigenMiddelen}
+          />
+        )}
+        {activeTab === "settings" && (
+          <InstellingenTab
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+            onReset={resetAll}
+            syncEnabled={syncEnabled}
+            syncStatus={sync.syncStatus}
+            lastSync={sync.lastSync}
+            lastEditor={sync.lastEditor}
+            deviceId={sync.deviceId}
+            onConfigureSync={() => setShowSyncSetup(true)}
+          />
+        )}
+      </main>
+
+      {/* ── SYNC SETUP ── */}
+      {showSyncSetup && (
+        <SyncSetupModal
+          initial={OnsHuisjeSync.loadSyncConfig()}
+          onSaved={onSyncSaved}
+          onDisable={onSyncDisable}
+          onClose={() => setShowSyncSetup(false)}
+        />
+      )}
+
+      {/* ── MODALS ── */}
+      {modal?.type === "loading" && <LoadingModal />}
+
+      {modal?.type === "invoice" && (
+        <InvoiceModal
+          invoice={modal.invoice}
+          isEditing={!!modal.isEditing}
+          onSave={saveInvoice}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === "eigen" && (
+        <EigenMiddelModal
+          item={modal.item}
+          onSave={saveEM}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal?.type === "duplicate" && (
+        <DuplicateModal
+          existing={modal.existing}
+          onForce={() => saveInvoice(modal.newInvoice, true)}
+          onCancel={() => setModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
