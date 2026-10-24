@@ -150,6 +150,7 @@ button { cursor: pointer; border: none; background: none; }
     padding: 10px 12px !important;
   }
   .invoice-row .col-date { flex: 0 0 auto; font-size: 11px; color: var(--tx3); }
+  .invoice-row .col-check { flex: 0 0 auto; order: 0; }
   .invoice-row .col-supp { flex: 1 1 100%; order: 2; font-weight: 600; font-size: 13px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .invoice-row .col-amount { margin-left: auto; text-align: right; }
@@ -249,6 +250,20 @@ const fmtShort = n => {
 const pct  = (a, b) => b === 0 ? 0 : Math.min((a / b) * 100, 100);
 const uid  = () => `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+
+/* Factuur-status: facturen zonder veld (oude/bestaande data) gelden als betaald.
+   Een factuur telt pas mee in budget & schijven zodra ze betaald is. */
+const isPaid   = inv => inv.betaald !== false;
+const invTotal = inv => (inv.bedrag||0) + (inv.btw||0);
+const WARN_BUFFER = 5000;   // amber-waarschuwing als er minder dan dit overblijft na openstaande facturen
+
+/* Herbruikbare stijlen voor metric-blokjes + balk-legende */
+const STAT_LBL = { fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 };
+const STAT_NUM = { fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, lineHeight:1 };
+const STAT_SUB = { fontSize:11, color:"var(--tx3)", marginTop:3 };
+const LEGEND   = { display:"inline-flex", alignItems:"center", gap:5 };
+const DOT      = { width:9, height:9, borderRadius:"50%", display:"inline-block", flexShrink:0 };
+const STRIPE_RED = "repeating-linear-gradient(45deg,var(--red),var(--red) 6px,#a33f31 6px,#a33f31 12px)";
 
 function loadState() {
   try {
@@ -524,11 +539,30 @@ function InvoiceModal({ invoice, onSave, onClose, isEditing }) {
         {ALL_FASES.map(f => <option key={f.id} value={f.id}>{f.id} — {f.name}</option>)}
       </Select>
 
+      <div style={{ marginBottom:14 }}>
+        <label style={{
+          display:"block", fontSize:11, fontWeight:600, color:"var(--tx3)",
+          textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8
+        }}>Status</label>
+        <div style={{ display:"flex", gap:8 }}>
+          {[{k:false,lbl:"🕓 Openstaand",c:"var(--amber)",bg:"var(--amber-l)"},{k:true,lbl:"✓ Betaald",c:"var(--green)",bg:"var(--green-l)"}].map(o => {
+            const sel = (form.betaald !== false) === o.k;
+            return (
+              <button key={String(o.k)} type="button" onClick={() => set("betaald", o.k)} style={{
+                flex:1, padding:"10px 14px", borderRadius:"var(--r-md)", fontSize:13, fontWeight:600, cursor:"pointer",
+                border: sel ? `2px solid ${o.c}` : "1px solid var(--brd)",
+                background: sel ? o.bg : "var(--sf2)", color: sel ? o.c : "var(--tx3)", transition:"all 0.15s"
+              }}>{o.lbl}</button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{
         background:"var(--sf2)", borderRadius:"var(--r-md)",
         padding:"10px 13px", marginBottom:16, fontSize:12, color:"var(--tx3)", lineHeight:1.5
       }}>
-        ℹ️ Facturen gaan af van het <strong style={{color:"var(--tx2)"}}>bouwbudget (lening)</strong>. Kosten uit eigen zak voeg je toe bij <strong style={{color:"var(--tx2)"}}>Eigen middelen</strong>.
+        ℹ️ Een factuur telt pas mee in budget &amp; schijven zodra ze op <strong style={{color:"var(--green)"}}>Betaald</strong> staat. Openstaande facturen zie je apart als toekomstige verplichting. Kosten uit eigen zak voeg je toe bij <strong style={{color:"var(--tx2)"}}>Eigen middelen</strong>.
       </div>
 
       <div style={{ display:"flex", gap:10 }}>
@@ -823,13 +857,68 @@ function SyncIndicator({ status, lastSync, lastEditor, deviceId, onClick }) {
 }
 
 /* ════════════════════════════════════════
+   TRANCHE-WAARSCHUWING (gedeeld door Overzicht + Lening)
+════════════════════════════════════════ */
+function TrancheAlert({ openTotal, drawnAvail, afterOpen, needNewTranche, tranchesNeeded, compact }) {
+  const nearLimit = !needNewTranche && openTotal > 0 && afterOpen < WARN_BUFFER;
+  if (!needNewTranche && !nearLimit) return null;
+  const red = needNewTranche;
+  return (
+    <div className="anim-fadeup" style={{
+      background: red ? "var(--red-l)" : "var(--amber-l)",
+      border: `1px solid ${red ? "rgba(184,73,58,0.28)" : "rgba(184,135,43,0.28)"}`,
+      borderRadius:"var(--r-lg)", padding: compact ? "12px 15px" : "16px 18px", marginBottom:12,
+      display:"flex", gap:13, alignItems:"flex-start"
+    }}>
+      <span style={{ fontSize: compact?22:26, lineHeight:1, flexShrink:0 }}>{red ? "🚨" : "⚠️"}</span>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize: compact?13:14, fontWeight:700, color: red ? "var(--red)" : "var(--amber)", marginBottom:3 }}>
+          {red ? "Nieuwe schijf aanvragen bij de bank" : "Bijna door je opgenomen bedrag heen"}
+        </div>
+        <div style={{ fontSize:12.5, color:"var(--tx2)", lineHeight:1.55 }}>
+          {red ? (
+            <Fragment>
+              Je openstaande facturen (<strong>{fmt(openTotal)}</strong>) overschrijden wat er nog op de rekening staat
+              (<strong>{fmt(Math.max(drawnAvail,0))}</strong>). Tekort van <strong style={{color:"var(--red)"}}>{fmt(Math.abs(afterOpen))}</strong> —
+              vraag <strong>{tranchesNeeded} {tranchesNeeded===1?"nieuwe schijf":"nieuwe schijven"}</strong> aan om ze te kunnen betalen.
+            </Fragment>
+          ) : (
+            <Fragment>
+              Na het betalen van de openstaande facturen blijft er nog maar <strong>{fmt(Math.max(afterOpen,0))}</strong> over
+              van je opgenomen schijven. Hou rekening met een nieuwe schijf-aanvraag.
+            </Fragment>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Stacked balk: betaald (groen) + openstaand (amber) t.o.v. opgenomen plafond */
+function DrawnBar({ paidTotal, openTotal, loanUsed, height=18 }) {
+  const barMax = Math.max(loanUsed, paidTotal + openTotal, 1);
+  const openWithin = Math.max(0, Math.min(openTotal, loanUsed - paidTotal));
+  const openBeyond = Math.max(0, openTotal - openWithin);
+  const w = v => `${clamp(v / barMax * 100, 0, 100)}%`;
+  const ceilPos = clamp(loanUsed / barMax * 100, 0, 100);
+  return (
+    <div style={{ position:"relative", height, borderRadius:height/2, background:"var(--sf3)", overflow:"hidden", display:"flex" }}>
+      <div style={{ width:w(paidTotal),  background:"var(--green)", transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)" }} />
+      <div style={{ width:w(openWithin), background:"var(--amber)", transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)" }} />
+      <div style={{ width:w(openBeyond), background:STRIPE_RED }} />
+      <div style={{ position:"absolute", top:-2, bottom:-2, left:`calc(${ceilPos}% - 1px)`, width:2, background:"var(--tx)", opacity:0.5 }} title="Opgenomen plafond" />
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
    DASHBOARD TAB
 ════════════════════════════════════════ */
 function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
   const spentByFase = useMemo(() => {
     const m = {};
     ALL_FASES.forEach(f => m[f.id] = 0);
-    invoices.forEach(i => { if (m[i.fase] !== undefined) m[i.fase] += (i.bedrag||0) + (i.btw||0); });
+    invoices.forEach(i => { if (isPaid(i) && m[i.fase] !== undefined) m[i.fase] += invTotal(i); });
     return m;
   }, [invoices]);
 
@@ -843,8 +932,19 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
   const loanRem    = LOAN_TOTAL - loanUsed;
   const overFases  = ALL_FASES.filter(f => spentByFase[f.id] > f.budget);
 
+  /* Openstaande facturen & resterend van opgenomen schijven (request 2) */
+  const paidTotal      = totalSpent;
+  const openTotal      = invoices.filter(i => !isPaid(i)).reduce((s,i)=>s+invTotal(i),0);
+  const openCount      = invoices.filter(i => !isPaid(i)).length;
+  const drawnAvail     = loanUsed - paidTotal;        // wat er nog op de rekening staat
+  const afterOpen      = drawnAvail - openTotal;      // wat overblijft na alle openstaande facturen
+  const needNewTranche = afterOpen < 0;
+  const tranchesNeeded = needNewTranche ? Math.ceil(Math.abs(afterOpen) / TRANCHE_AMOUNT) : 0;
+
   return (
     <div>
+      <TrancheAlert openTotal={openTotal} drawnAvail={drawnAvail} afterOpen={afterOpen}
+        needNewTranche={needNewTranche} tranchesNeeded={tranchesNeeded} compact />
       {/* Budget blocks */}
       <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
         <Card className="anim-fadeup card-pad-sm" style={{ padding:20 }}>
@@ -960,6 +1060,34 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
         </div>
       </Card>
 
+      {/* Opgenomen schijven — hoeveel is er nog over? (request 2) */}
+      <Card className="anim-fadeup d3" style={{ padding:20, marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+          <div style={{ fontSize:13, fontWeight:600 }}>Opgenomen schijven</div>
+          <div style={{ fontSize:11, color:"var(--tx3)" }}>schijf {tranchesUsed}/{TRANCHE_COUNT} opgenomen</div>
+        </div>
+        <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:14 }}>
+          <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"12px 14px" }}>
+            <div style={STAT_LBL}>✓ Betaald</div>
+            <div style={{ ...STAT_NUM, fontSize:16, color:"var(--green)" }}>{fmt(paidTotal)}</div>
+          </div>
+          <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"12px 14px" }}>
+            <div style={STAT_LBL}>🕓 Openstaand</div>
+            <div style={{ ...STAT_NUM, fontSize:16, color:"var(--amber)" }}>{fmt(openTotal)}</div>
+            <div style={STAT_SUB}>{openCount} {openCount===1?"factuur":"facturen"}</div>
+          </div>
+          <div style={{ background: drawnAvail>=0?"var(--green-l)":"var(--red-l)", borderRadius:"var(--r-md)", padding:"12px 14px", border:`1px solid ${drawnAvail>=0?"rgba(78,126,82,0.2)":"rgba(184,73,58,0.2)"}` }}>
+            <div style={STAT_LBL}>💰 Nog op rekening</div>
+            <div style={{ ...STAT_NUM, fontSize:16, color: drawnAvail>=0?"var(--green)":"var(--red)" }}>{fmt(drawnAvail)}</div>
+          </div>
+        </div>
+        <DrawnBar paidTotal={paidTotal} openTotal={openTotal} loanUsed={loanUsed} />
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:8, fontSize:10.5, color:"var(--tx4)", fontFamily:"'JetBrains Mono',monospace" }}>
+          <span>{fmt(paidTotal + openTotal)} betaald + open</span>
+          <span>plafond {fmt(loanUsed)}</span>
+        </div>
+      </Card>
+
       {/* Over-budget alert */}
       {overFases.length > 0 && (
         <div className="anim-fadeup" style={{
@@ -1014,11 +1142,18 @@ function DashboardTab({ invoices, eigenMiddelen, savings, tranchesUsed }) {
 /* ════════════════════════════════════════
    MEETSTAAT TAB
 ════════════════════════════════════════ */
-function Meetstaat({ invoices, expandedFase, onToggleFase }) {
+function Meetstaat({ invoices, expandedFase, onToggleFase, onTogglePaid }) {
   const spentByFase = useMemo(() => {
     const m = {};
     ALL_FASES.forEach(f => m[f.id] = 0);
-    invoices.forEach(i => { if (m[i.fase] !== undefined) m[i.fase] += (i.bedrag||0) + (i.btw||0); });
+    invoices.forEach(i => { if (isPaid(i) && m[i.fase] !== undefined) m[i.fase] += invTotal(i); });
+    return m;
+  }, [invoices]);
+
+  const openByFase = useMemo(() => {
+    const m = {};
+    ALL_FASES.forEach(f => m[f.id] = 0);
+    invoices.forEach(i => { if (!isPaid(i) && m[i.fase] !== undefined) m[i.fase] += invTotal(i); });
     return m;
   }, [invoices]);
 
@@ -1063,7 +1198,14 @@ function Meetstaat({ invoices, expandedFase, onToggleFase }) {
               }}
             >
               <Badge color={f.id==="KBK"?"var(--blue)":"var(--accent)"} bg={f.id==="KBK"?"var(--blue-l)":"var(--accent-l)"}>{f.id}</Badge>
-              <span style={{ fontSize:13, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+              <span style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                <span style={{ fontSize:13, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+                {openByFase[f.id] > 0 && (
+                  <span style={{ flexShrink:0, fontSize:9.5, fontWeight:700, color:"var(--amber)", background:"var(--amber-l)", padding:"2px 6px", borderRadius:5, whiteSpace:"nowrap" }}>
+                    🕓 {fmtShort(openByFase[f.id])}
+                  </span>
+                )}
+              </span>
               <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace", color:"var(--tx3)", textAlign:"right" }}>{fmt(f.budget)}</span>
               <div style={{ padding:"0 4px" }}><ProgressBar value={sp} max={f.budget} height={6} danger /></div>
               <span style={{
@@ -1092,18 +1234,29 @@ function Meetstaat({ invoices, expandedFase, onToggleFase }) {
                 ) : (
                   faseInvoices.map((inv, i, arr) => (
                     <div key={inv.id} style={{
-                      display:"grid", gridTemplateColumns:"90px 1fr 90px",
-                      gap:8, padding:"6px 0",
+                      display:"grid", gridTemplateColumns:"26px 78px 1fr 92px",
+                      gap:8, padding:"6px 0", alignItems:"center",
                       borderBottom: i < arr.length-1 ? "1px solid var(--brd)" : "none",
                       fontSize:12
                     }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onTogglePaid(inv.id); }}
+                        title={isPaid(inv) ? "Betaald — klik om terug op open te zetten" : "Markeer als betaald"}
+                        style={{
+                          width:20, height:20, borderRadius:"50%", flexShrink:0,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          border: isPaid(inv) ? "none" : "2px solid var(--amber)",
+                          background: isPaid(inv) ? "var(--green)" : "transparent",
+                          color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", transition:"all 0.15s"
+                        }}
+                      >{isPaid(inv) ? "✓" : ""}</button>
                       <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--tx3)" }}>{inv.datum}</span>
                       <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                         <strong style={{ color:"var(--tx)" }}>{inv.leverancier}</strong>
                         {inv.omschrijving && <span style={{color:"var(--tx3)"}}> — {inv.omschrijving}</span>}
                       </span>
-                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right" }}>
-                        {fmt((inv.bedrag||0)+(inv.btw||0))}
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, textAlign:"right", color: isPaid(inv) ? "var(--tx)" : "var(--amber)" }}>
+                        {fmt(invTotal(inv))}
                       </span>
                     </div>
                   ))
@@ -1137,8 +1290,8 @@ function Meetstaat({ invoices, expandedFase, onToggleFase }) {
 /* ════════════════════════════════════════
    FACTUREN TAB
 ════════════════════════════════════════ */
-function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, onEditEM, onDeleteEM, onAddEM }) {
-  const [filters, setFilters] = useState({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"" });
+function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, onTogglePaid, onEditEM, onDeleteEM, onAddEM }) {
+  const [filters, setFilters] = useState({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"", status:"" });
   const setF = (k,v) => setFilters(p => ({...p,[k]:v}));
   const hasFilters = Object.values(filters).some(Boolean);
 
@@ -1147,21 +1300,33 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
       if (filters.leverancier && !inv.leverancier.toLowerCase().includes(filters.leverancier.toLowerCase())) return false;
       if (filters.datum && inv.datum !== filters.datum) return false;
       if (filters.fase && inv.fase !== filters.fase) return false;
+      if (filters.status === "open" && isPaid(inv)) return false;
+      if (filters.status === "paid" && !isPaid(inv)) return false;
       if (filters.bedragMin && inv.bedrag < parseFloat(filters.bedragMin)) return false;
       if (filters.bedragMax && inv.bedrag > parseFloat(filters.bedragMax)) return false;
       return true;
     }).sort((a,b) => b.datum.localeCompare(a.datum));
   }, [invoices, filters]);
 
-  const subtotal = filtered.reduce((s,i) => s + (i.bedrag||0) + (i.btw||0), 0);
-  const totalEM  = eigenMiddelen.reduce((s,i) => s+i.bedrag, 0);
+  const subtotal  = filtered.reduce((s,i) => s + invTotal(i), 0);
+  const paidSum   = filtered.filter(isPaid).reduce((s,i) => s + invTotal(i), 0);
+  const openSum   = filtered.filter(i => !isPaid(i)).reduce((s,i) => s + invTotal(i), 0);
+  const openCount = invoices.filter(i => !isPaid(i)).length;
+  const totalEM   = eigenMiddelen.reduce((s,i) => s+i.bedrag, 0);
 
   return (
     <div className="anim-fadeup">
       {/* Facturen header */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <h3 style={{ fontSize:16, fontWeight:700 }}>Facturen bouwbudget</h3>
-        <div style={{ fontSize:12, color:"var(--tx3)" }}>{invoices.length} facturen</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"var(--tx3)" }}>
+          <span>{invoices.length} facturen</span>
+          {openCount > 0 && (
+            <span style={{ fontWeight:700, color:"var(--amber)", background:"var(--amber-l)", padding:"2px 9px", borderRadius:999 }}>
+              🕓 {openCount} open
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -1170,7 +1335,7 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
           <span style={{ fontSize:12, fontWeight:600 }}>🔍 Filter</span>
           {hasFilters && (
             <button
-              onClick={() => setFilters({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"" })}
+              onClick={() => setFilters({ leverancier:"", datum:"", fase:"", bedragMin:"", bedragMax:"", status:"" })}
               style={{
                 fontSize:11, fontWeight:600, color:"var(--red)",
                 background:"var(--red-l)", padding:"3px 10px",
@@ -1179,6 +1344,21 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
             >✕ Wis filters</button>
           )}
           {hasFilters && <span style={{fontSize:11,color:"var(--tx3)"}}>{filtered.length}/{invoices.length}</span>}
+        </div>
+
+        {/* Status-segment */}
+        <div style={{ display:"flex", gap:6, marginBottom:9 }}>
+          {[{k:"",lbl:"Alle"},{k:"open",lbl:"🕓 Open"},{k:"paid",lbl:"✓ Betaald"}].map(o => {
+            const sel = filters.status === o.k;
+            return (
+              <button key={o.k||"all"} onClick={() => setF("status", o.k)} style={{
+                flex:"0 0 auto", padding:"6px 14px", borderRadius:999, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
+                border: sel ? "1px solid var(--accent)" : "1px solid var(--brd)",
+                background: sel ? "var(--accent-l)" : "var(--sf2)",
+                color: sel ? "var(--accent)" : "var(--tx3)", transition:"all 0.15s"
+              }}>{o.lbl}</button>
+            );
+          })}
         </div>
         <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
           <input
@@ -1226,12 +1406,13 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
       <Card style={{ padding:0, marginBottom:26 }}>
         {/* Column header */}
         <div className="invoice-head" style={{
-          display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
+          display:"grid", gridTemplateColumns:"34px 80px 1fr 1fr 52px 92px 56px",
           gap:6, padding:"9px 14px",
           fontSize:10, fontWeight:700, color:"var(--tx4)",
           textTransform:"uppercase", letterSpacing:"0.05em",
           borderBottom:"1px solid var(--brd)"
         }}>
+          <span></span>
           <span>Datum</span>
           <span>Leverancier</span>
           <span className="hide-mobile">Omschrijving</span>
@@ -1245,24 +1426,40 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
             {invoices.length === 0 ? "Nog geen facturen. Upload een factuur of voeg er manueel één toe." : "Geen resultaten voor deze filters."}
           </div>
         ) : (
-          filtered.map((inv, idx) => (
+          filtered.map((inv, idx) => {
+            const paid = isPaid(inv);
+            return (
             <div key={inv.id} className="invoice-row" style={{
-              display:"grid", gridTemplateColumns:"86px 1fr 1fr 60px 94px 50px",
+              display:"grid", gridTemplateColumns:"34px 80px 1fr 1fr 52px 92px 56px",
               gap:6, padding:"10px 14px", fontSize:13, alignItems:"center",
               borderBottom:"1px solid var(--brd)",
-              background: idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)"
+              borderLeft: paid ? "3px solid transparent" : "3px solid var(--amber)",
+              background: paid ? (idx % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)") : "var(--amber-l)"
             }}>
+              <button
+                className="col-check"
+                onClick={() => onTogglePaid(inv.id)}
+                title={paid ? "Betaald — klik om terug op open te zetten" : "Markeer als betaald"}
+                style={{
+                  width:24, height:24, borderRadius:"50%", flexShrink:0,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  border: paid ? "none" : "2px solid var(--amber)",
+                  background: paid ? "var(--green)" : "transparent",
+                  color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.15s"
+                }}
+              >{paid ? "✓" : ""}</button>
               <span className="col-date" style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"var(--tx3)" }}>{inv.datum}</span>
               <div className="col-supp" style={{ overflow:"hidden" }}>
                 <div style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inv.leverancier}</div>
+                {!paid && <div style={{ fontSize:10, fontWeight:700, color:"var(--amber)" }}>🕓 Openstaand</div>}
               </div>
               <div className="hide-mobile" style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:12, color:"var(--tx3)" }}>
                 {inv.omschrijving}
               </div>
               <div className="hide-mobile"><Badge>{inv.fase}</Badge></div>
               <div className="col-amount" style={{ textAlign:"right" }}>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, fontSize:13 }}>
-                  {fmt((inv.bedrag||0)+(inv.btw||0))}
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, fontSize:13, color: paid ? "var(--tx)" : "var(--amber)" }}>
+                  {fmt(invTotal(inv))}
                 </div>
                 <div style={{ fontSize:9, color:"var(--tx4)", fontFamily:"'JetBrains Mono',monospace" }}>
                   {fmt(inv.bedrag||0)}+{fmt(inv.btw||0)}
@@ -1273,20 +1470,35 @@ function FacturenTab({ invoices, eigenMiddelen, onEditInvoice, onDeleteInvoice, 
                 <button onClick={() => onDeleteInvoice(inv.id)} style={{ padding:"3px 5px", fontSize:13, borderRadius:5, background:"transparent" }}>🗑️</button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
 
-        {/* Subtotal row */}
+        {/* Subtotal rows */}
         {invoices.length > 0 && (
-          <div style={{
-            display:"flex", justifyContent:"space-between", alignItems:"center",
-            padding:"11px 14px", borderTop:"2px solid var(--brd2)",
-            fontSize:13, fontWeight:700
-          }}>
-            <span>{hasFilters ? `Subtotaal (${filtered.length} facturen)` : `Totaal (${invoices.length} facturen)`}</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--accent)", fontSize:14 }}>
-              {fmt(subtotal)}
-            </span>
+          <div style={{ borderTop:"2px solid var(--brd2)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px 4px", fontSize:12 }}>
+              <span style={{ display:"flex", alignItems:"center", gap:7, color:"var(--tx2)" }}>
+                <span style={{ ...DOT, background:"var(--green)" }}></span>Betaald (verrekend)
+              </span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color:"var(--green)" }}>{fmt(paidSum)}</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 14px 10px", fontSize:12 }}>
+              <span style={{ display:"flex", alignItems:"center", gap:7, color:"var(--tx2)" }}>
+                <span style={{ ...DOT, background:"var(--amber)" }}></span>Openstaand
+              </span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color:"var(--amber)" }}>{fmt(openSum)}</span>
+            </div>
+            <div style={{
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+              padding:"11px 14px", borderTop:"1px solid var(--brd)",
+              fontSize:13, fontWeight:700
+            }}>
+              <span>{hasFilters ? `Subtotaal (${filtered.length} facturen)` : `Totaal (${invoices.length} facturen)`}</span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"var(--accent)", fontSize:14 }}>
+                {fmt(subtotal)}
+              </span>
+            </div>
           </div>
         )}
       </Card>
@@ -1359,8 +1571,14 @@ function LeningTab({ tranchesUsed, onSetTranches, savings, onSetSavings, eigenMi
   const loanUsed    = tranchesUsed * TRANCHE_AMOUNT;
   const loanRem     = LOAN_TOTAL - loanUsed;
   const totalEM     = eigenMiddelen.reduce((s,i)=>s+i.bedrag,0);
-  const totalSpent  = invoices.reduce((s,i)=>s+(i.bedrag||0)+(i.btw||0), 0);
-  const balance     = loanUsed - totalSpent;   // positief = meer opgenomen dan besteed, negatief = meer besteed dan opgenomen
+  const paidTotal   = invoices.filter(isPaid).reduce((s,i)=>s+invTotal(i), 0);
+  const openTotal   = invoices.filter(i=>!isPaid(i)).reduce((s,i)=>s+invTotal(i), 0);
+  const totalSpent  = paidTotal;
+  const drawnAvail  = loanUsed - paidTotal;          // nog op rekening van opgenomen schijven
+  const afterOpen   = drawnAvail - openTotal;        // wat overblijft na alle openstaande facturen
+  const needNewTranche = afterOpen < 0;
+  const tranchesNeeded = needNewTranche ? Math.ceil(Math.abs(afterOpen) / TRANCHE_AMOUNT) : 0;
+  const balance     = drawnAvail;
   const [savEdit, setSavEdit] = useState(String(savings));
 
   const handleSavBlur = () => {
@@ -1371,6 +1589,8 @@ function LeningTab({ tranchesUsed, onSetTranches, savings, onSetSavings, eigenMi
 
   return (
     <div>
+      <TrancheAlert openTotal={openTotal} drawnAvail={drawnAvail} afterOpen={afterOpen}
+        needNewTranche={needNewTranche} tranchesNeeded={tranchesNeeded} />
       {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))", gap:10, marginBottom:14 }}>
         <div className="anim-fadeup">
@@ -1387,73 +1607,66 @@ function LeningTab({ tranchesUsed, onSetTranches, savings, onSetSavings, eigenMi
         </div>
       </div>
 
-      {/* Opgenomen vs. besteed */}
+      {/* Opgenomen schijven — wat is er nog over? */}
       <Card className="anim-fadeup d1" style={{ padding:20, marginBottom:12 }}>
-        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Opgenomen vs. besteed</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Opgenomen schijven — wat is er nog over?</div>
+        <div className="stack-sm" style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:16 }}>
           <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"13px 14px" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Opgenomen</div>
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color:"var(--accent)" }}>{fmt(loanUsed)}</div>
-            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>{tranchesUsed} schijven</div>
+            <div style={STAT_LBL}>📤 Opgenomen</div>
+            <div style={{ ...STAT_NUM, color:"var(--accent)" }}>{fmt(loanUsed)}</div>
+            <div style={STAT_SUB}>{tranchesUsed} schijven</div>
           </div>
           <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"13px 14px" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>Besteed</div>
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color:"var(--tx)" }}>{fmt(totalSpent)}</div>
-            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>{invoices.length} facturen</div>
+            <div style={STAT_LBL}>✓ Betaald</div>
+            <div style={{ ...STAT_NUM, color:"var(--green)" }}>{fmt(paidTotal)}</div>
+            <div style={STAT_SUB}>{invoices.filter(isPaid).length} verrekend</div>
+          </div>
+          <div style={{ background:"var(--sf2)", borderRadius:"var(--r-md)", padding:"13px 14px" }}>
+            <div style={STAT_LBL}>🕓 Openstaand</div>
+            <div style={{ ...STAT_NUM, color:"var(--amber)" }}>{fmt(openTotal)}</div>
+            <div style={STAT_SUB}>{invoices.filter(i=>!isPaid(i)).length} te betalen</div>
           </div>
           <div style={{
-            background: balance >= 0 ? "var(--green-l)" : "var(--red-l)",
+            background: drawnAvail >= 0 ? "var(--green-l)" : "var(--red-l)",
             borderRadius:"var(--r-md)", padding:"13px 14px",
-            border: `1px solid ${balance >= 0 ? "rgba(78,126,82,0.2)" : "rgba(184,73,58,0.2)"}`
+            border: `1px solid ${drawnAvail >= 0 ? "rgba(78,126,82,0.2)" : "rgba(184,73,58,0.2)"}`
           }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"var(--tx3)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:5 }}>
-              {balance >= 0 ? "Nog beschikbaar" : "Tekort"}
-            </div>
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, fontWeight:700, color: balance >= 0 ? "var(--green)" : "var(--red)" }}>
-              {fmt(Math.abs(balance))}
-            </div>
-            <div style={{ fontSize:11, color:"var(--tx3)", marginTop:3 }}>
-              {balance >= 0 ? "van opgenomen schijven" : "meer uitgegeven dan opgenomen"}
-            </div>
+            <div style={STAT_LBL}>💰 Nog op rekening</div>
+            <div style={{ ...STAT_NUM, color: drawnAvail >= 0 ? "var(--green)" : "var(--red)" }}>{fmt(drawnAvail)}</div>
+            <div style={STAT_SUB}>van opgenomen schijven</div>
           </div>
         </div>
 
-        {/* Dubbele balk: opgenomen vs besteed */}
-        <div style={{ marginBottom:6 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--tx3)", marginBottom:4 }}>
-            <span>Besteed van opgenomen schijven</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:600, color: totalSpent > loanUsed ? "var(--red)" : "var(--tx2)" }}>
-              {loanUsed > 0 ? `${Math.min((totalSpent/loanUsed*100),999).toFixed(1)}%` : "—"}
-            </span>
-          </div>
-          {/* Track: opgenomen */}
-          <div style={{ position:"relative", height:14, borderRadius:7, background:"var(--accent-l)", overflow:"hidden" }}>
-            {/* Besteed */}
-            <div style={{
-              position:"absolute", left:0, top:0, height:"100%",
-              width:`${clamp(loanUsed > 0 ? (totalSpent/loanUsed)*100 : 0, 0, 100)}%`,
-              background: totalSpent > loanUsed ? "var(--red)" : "var(--green)",
-              borderRadius:7,
-              transition:"width 0.8s cubic-bezier(0.22,1,0.36,1)"
-            }} />
-          </div>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--tx4)", marginTop:4 }}>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>Besteed: {fmt(totalSpent)}</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>Opgenomen: {fmt(loanUsed)}</span>
-          </div>
+        {/* Stacked balk: betaald + openstaand binnen opgenomen */}
+        <DrawnBar paidTotal={paidTotal} openTotal={openTotal} loanUsed={loanUsed} height={20} />
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"6px 16px", marginTop:9, fontSize:11, color:"var(--tx3)" }}>
+          <span style={LEGEND}><span style={{...DOT, background:"var(--green)"}}></span>Betaald {fmt(paidTotal)}</span>
+          <span style={LEGEND}><span style={{...DOT, background:"var(--amber)"}}></span>Openstaand {fmt(openTotal)}</span>
+          <span style={LEGEND}><span style={{...DOT, background:"var(--tx)", opacity:0.5}}></span>Opgenomen plafond {fmt(loanUsed)}</span>
         </div>
 
-        {/* Lening totaal voortgang */}
-        <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid var(--brd)" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--tx3)", marginBottom:4 }}>
-            <span>Opgenomen van totale lening</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{pct(loanUsed, LOAN_TOTAL).toFixed(1)}%</span>
-          </div>
-          <ProgressBar value={loanUsed} max={LOAN_TOTAL} height={8} />
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--tx4)", marginTop:4 }}>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(loanUsed)} opgenomen</span>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(LOAN_TOTAL)} totaal</span>
-          </div>
+        {/* Na openstaande facturen */}
+        <div style={{
+          marginTop:14, paddingTop:12, borderTop:"1px solid var(--brd)",
+          display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap"
+        }}>
+          <span style={{ fontSize:12, color:"var(--tx2)" }}>Resterend na alle openstaande facturen</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:15, color: afterOpen >= 0 ? "var(--green)" : "var(--red)" }}>
+            {afterOpen >= 0 ? fmt(afterOpen) : `−${fmt(Math.abs(afterOpen))}`}
+          </span>
+        </div>
+      </Card>
+
+      {/* Opgenomen van totale lening */}
+      <Card className="anim-fadeup d2" style={{ padding:20, marginBottom:12 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"var(--tx3)", marginBottom:4 }}>
+          <span>Opgenomen van totale lening</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{pct(loanUsed, LOAN_TOTAL).toFixed(1)}%</span>
+        </div>
+        <ProgressBar value={loanUsed} max={LOAN_TOTAL} height={8} />
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--tx4)", marginTop:4 }}>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(loanUsed)} opgenomen</span>
+          <span style={{ fontFamily:"'JetBrains Mono',monospace" }}>{fmt(LOAN_TOTAL)} totaal</span>
         </div>
       </Card>
 
@@ -1690,7 +1903,7 @@ function App() {
   const [invoices,      setInvoices]      = useState(INITIAL_INVOICES_DATA);
   const [eigenMiddelen, setEigenMiddelen] = useState(INITIAL_EIGEN_MIDDELEN);
   const [savings,       setSavings]       = useState(7100);
-  const [tranchesUsed,  setTranchesUsed]  = useState(0);
+  const [tranchesUsed,  setTranchesUsed]  = useState(1);
   const [apiKey,        setApiKey]        = useState("");
   const [activeTab,     setActiveTab]     = useState("dashboard");
   const [expandedFase,  setExpandedFase]  = useState(null);
@@ -1708,7 +1921,7 @@ function App() {
     if (s) {
       // Opgeslagen data overschrijft startdata — maar alleen als er ook echt facturen in zitten
       // (om te voorkomen dat een lege oude save de nieuwe startdata weggooit)
-      if (s.invoices && s.invoices.length > 0) setInvoices(s.invoices);
+      if (s.invoices && s.invoices.length > 0) setInvoices(s.invoices.map(i => ({ ...i, betaald: i.betaald !== false })));
       if (s.eigenMiddelen && s.eigenMiddelen.length > 0) setEigenMiddelen(s.eigenMiddelen);
       if (s.savings != null) setSavings(s.savings);
       if (s.tranchesUsed != null) setTranchesUsed(s.tranchesUsed);
@@ -1786,6 +1999,10 @@ function App() {
     if (confirm("Factuur verwijderen?")) setInvoices(prev => prev.filter(i => i.id !== id));
   }, []);
 
+  const toggleInvoicePaid = useCallback((id) => {
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, betaald: i.betaald === false } : i));
+  }, []);
+
   /* ── Eigen Middelen helpers ── */
   const saveEM = useCallback((item) => {
     setEigenMiddelen(prev => {
@@ -1806,7 +2023,7 @@ function App() {
     e.target.value = "";
 
     if (!apiKey) {
-      setModal({ type:"invoice", invoice:{ id:uid(), leverancier:"", bedrag:0, btw:0,
+      setModal({ type:"invoice", invoice:{ id:uid(), betaald:false, leverancier:"", bedrag:0, btw:0,
         datum:new Date().toISOString().slice(0,10), fase:ALL_FASES[0].id, omschrijving:"" } });
       return;
     }
@@ -1828,6 +2045,7 @@ function App() {
         type:"invoice",
         invoice: {
           id: uid(),
+          betaald: false,
           leverancier: result?.leverancier || "",
           bedrag: result?.bedrag || 0,
           btw: result?.btw || 0,
@@ -1911,7 +2129,7 @@ function App() {
             />
             <Btn small onClick={() => setModal({
               type:"invoice",
-              invoice:{ id:uid(), leverancier:"", bedrag:0, btw:0,
+              invoice:{ id:uid(), betaald:false, leverancier:"", bedrag:0, btw:0,
                 datum:new Date().toISOString().slice(0,10), fase:ALL_FASES[0].id, omschrijving:"" }
             })}>✏️ Manueel</Btn>
             <Btn small primary onClick={() => fileRef.current?.click()}>📄 Factuur</Btn>
@@ -1958,6 +2176,7 @@ function App() {
             invoices={invoices}
             expandedFase={expandedFase}
             onToggleFase={id => setExpandedFase(p => p===id ? null : id)}
+            onTogglePaid={toggleInvoicePaid}
           />
         )}
         {activeTab === "invoices" && (
@@ -1966,6 +2185,7 @@ function App() {
             eigenMiddelen={eigenMiddelen}
             onEditInvoice={inv => setModal({ type:"invoice", invoice:inv, isEditing:true })}
             onDeleteInvoice={deleteInvoice}
+            onTogglePaid={toggleInvoicePaid}
             onEditEM={em => setModal({ type:"eigen", item:{ ...em, _existing:true } })}
             onDeleteEM={deleteEM}
             onAddEM={() => setModal({ type:"eigen", item:{ id:uid(), leverancier:"", bedrag:0, btw:0, datum:new Date().toISOString().slice(0,10), omschrijving:"", type:"cash" } })}
